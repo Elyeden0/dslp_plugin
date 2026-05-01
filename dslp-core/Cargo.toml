@@ -1,0 +1,15 @@
+[package]
+name = "dslp-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Domain types and plugin traits for noAIslop"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+blake3.workspace = true
+chrono.workspace = true
+thiserror.workspace = true

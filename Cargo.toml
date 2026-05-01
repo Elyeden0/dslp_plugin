@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = [
+    "dslp-core",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Alexis Bonnard"]
+repository = "https://github.com/peteromallet/desloppify"
+rust-version = "1.78"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+blake3 = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+ignore = "0.4"
+rayon = "1"
+tree-sitter = "0.22"
+tree-sitter-rust = "0.21"
+tree-sitter-typescript = "0.21"
+tree-sitter-javascript = "0.21"
+tree-sitter-go = "0.21"
+tree-sitter-python = "0.21"
+tree-sitter-c = "0.21"
+tree-sitter-cpp = "0.22"
+thiserror = "1"
+anyhow = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
