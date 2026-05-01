@@ -12,6 +12,7 @@ members = [
     "dslp-fw-nuxt",
     "dslp-lang-go",
     "dslp-cli",
+    "dslp-lang-python",
 ]
 
 [workspace.package]
