@@ -10,6 +10,7 @@ members = [
     "dslp-fw-react",
     "dslp-fw-nextjs",
     "dslp-fw-nuxt",
+    "dslp-lang-go",
 ]
 
 [workspace.package]
