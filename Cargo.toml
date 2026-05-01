@@ -6,6 +6,7 @@ members = [
     "dslp-lang-common",
     "dslp-lang-rust",
     "dslp-engine",
+    "dslp-lang-ts",
 ]
 
 [workspace.package]
