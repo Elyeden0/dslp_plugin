@@ -1,0 +1,13 @@
+[package]
+name = "dslp-fw-nextjs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Next.js framework detectors for noAIslop"
+
+[dependencies]
+dslp-core = { path = "../dslp-core" }
+dslp-base = { path = "../dslp-base" }
+serde_json.workspace = true
