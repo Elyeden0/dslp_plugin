@@ -1,0 +1,35 @@
+[package]
+name = "dslp-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Command-line interface for noAIslop"
+
+[[bin]]
+name = "dslp"
+path = "src/main.rs"
+
+[dependencies]
+dslp-core = { path = "../dslp-core" }
+dslp-base = { path = "../dslp-base" }
+dslp-engine = { path = "../dslp-engine" }
+dslp-lang-rust = { path = "../dslp-lang-rust" }
+dslp-lang-ts = { path = "../dslp-lang-ts" }
+dslp-lang-go = { path = "../dslp-lang-go" }
+dslp-lang-python = { path = "../dslp-lang-python" }
+dslp-lang-c = { path = "../dslp-lang-c" }
+dslp-lang-cpp = { path = "../dslp-lang-cpp" }
+dslp-fw-react = { path = "../dslp-fw-react" }
+dslp-fw-nextjs = { path = "../dslp-fw-nextjs" }
+dslp-fw-nuxt = { path = "../dslp-fw-nuxt" }
+clap.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
+
+# Used only to restore the default SIGPIPE disposition (see main.rs) so that
+# closing a downstream pipe (`dslp ... | head`) terminates us by signal rather
+# than panicking on a broken-pipe write.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

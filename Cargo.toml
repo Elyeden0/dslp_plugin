@@ -11,6 +11,7 @@ members = [
     "dslp-fw-nextjs",
     "dslp-fw-nuxt",
     "dslp-lang-go",
+    "dslp-cli",
 ]
 
 [workspace.package]
