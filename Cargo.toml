@@ -13,6 +13,8 @@ members = [
     "dslp-lang-go",
     "dslp-cli",
     "dslp-lang-python",
+    "dslp-lang-c",
+    "dslp-lang-cpp",
 ]
 
 [workspace.package]

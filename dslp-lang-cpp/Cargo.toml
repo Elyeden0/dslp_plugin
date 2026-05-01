@@ -1,0 +1,16 @@
+[package]
+name = "dslp-lang-cpp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "C++ language plugin for noAIslop"
+
+[dependencies]
+dslp-core = { path = "../dslp-core" }
+dslp-base = { path = "../dslp-base" }
+dslp-lang-common = { path = "../dslp-lang-common" }
+tree-sitter.workspace = true
+tree-sitter-cpp.workspace = true
+serde_json.workspace = true
