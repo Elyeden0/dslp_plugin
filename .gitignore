@@ -1,0 +1,19 @@
+# Rust
+/target/
+# Cargo.lock is committed — dslp-cli ships a binary, so pin reproducible builds.
+
+# dslp's own local scan cache
+.dslp/
+
+# graphify knowledge-graph tool output (regeneratable analysis cache)
+/graphify-out/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Claude Code
+.claude/
+CLAUDE.md
