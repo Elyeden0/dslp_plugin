@@ -1,0 +1,13 @@
+[package]
+name = "dslp-lang-common"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Shared detector primitives for noAIslop language plugins"
+
+[dependencies]
+dslp-core = { path = "../dslp-core" }
+dslp-base = { path = "../dslp-base" }
+tree-sitter.workspace = true

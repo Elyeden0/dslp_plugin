@@ -3,6 +3,8 @@ resolver = "2"
 members = [
     "dslp-core",
     "dslp-base",
+    "dslp-lang-common",
+    "dslp-lang-rust",
 ]
 
 [workspace.package]
