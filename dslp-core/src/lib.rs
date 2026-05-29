@@ -11,7 +11,7 @@ mod severity;
 mod span;
 
 pub use finding::Finding;
-pub use issue::Issue;
+pub use issue::{Issue, Status};
 pub use plugin::{FileHandle, LanguagePlugin, ScanContext};
 pub use score::{DetectorBreakdown, Score};
 pub use severity::Severity;
