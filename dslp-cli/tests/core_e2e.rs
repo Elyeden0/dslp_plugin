@@ -30,6 +30,8 @@ fn scan_then_next_produces_expected_output() {
     assert!(out.status.success(), "next failed: {:?}", out);
     let stdout = String::from_utf8(out.stdout).unwrap();
     assert!(stdout.contains("rust."), "next output missing detector id: {}", stdout);
+    // The "When done" line tells the agent how to clear the issue.
+    assert!(stdout.contains("dslp resolve"), "next output missing resolve hint: {}", stdout);
 }
 
 #[test]
@@ -77,7 +79,8 @@ fn json_outputs_are_parseable() {
         .unwrap();
     assert!(out.status.success());
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("scan json parses");
-    assert!(v["score"]["composite"].is_number(), "got: {}", v);
+    assert!(v["score"]["lenient"].is_number(), "got: {}", v);
+    assert!(v["score"]["strict"].is_number(), "got: {}", v);
     assert!(v["files_scanned"].is_number(), "got: {}", v);
 
     let out = Command::new(dslp_bin())
@@ -97,7 +100,8 @@ fn json_outputs_are_parseable() {
         .unwrap();
     assert!(out.status.success());
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("score json parses");
-    assert!(v["composite"].is_number(), "got: {}", v);
+    assert!(v["lenient"].is_number(), "got: {}", v);
+    assert!(v["strict"].is_number(), "got: {}", v);
 }
 
 #[test]
