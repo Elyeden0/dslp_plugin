@@ -33,7 +33,7 @@ enum Command {
         #[arg(long, default_value_t = false)]
         json: bool,
     },
-    /// Print the latest composite score (no rescan)
+    /// Print the latest score: lenient / strict / gap (no rescan)
     Score {
         #[arg(long, default_value = ".")]
         path: PathBuf,
@@ -49,6 +49,27 @@ enum Command {
         /// Cap the number of issues shown (default: all)
         #[arg(long)]
         limit: Option<usize>,
+    },
+    /// Mark an issue fixed (optimistic — a later scan reopens it if it's still there)
+    Resolve {
+        /// Issue fingerprint (a unique prefix is enough)
+        fingerprint: String,
+        #[arg(long, default_value = ".")]
+        path: PathBuf,
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+    /// Dismiss an issue as wontfix (still counts toward the strict score)
+    Suppress {
+        /// Issue fingerprint (a unique prefix is enough)
+        fingerprint: String,
+        /// Why this issue won't be fixed (required)
+        #[arg(long)]
+        reason: String,
+        #[arg(long, default_value = ".")]
+        path: PathBuf,
+        #[arg(long, default_value_t = false)]
+        json: bool,
     },
 }
 
@@ -72,6 +93,10 @@ fn main() -> ExitCode {
         Command::Next { path, json } => cmd_next(&path, json),
         Command::Score { path, json } => cmd_score(&path, json),
         Command::Findings { path, json, limit } => cmd_findings(&path, json, limit),
+        Command::Resolve { fingerprint, path, json } => cmd_resolve(&path, &fingerprint, json),
+        Command::Suppress { fingerprint, reason, path, json } => {
+            cmd_suppress(&path, &fingerprint, &reason, json)
+        }
     };
 
     match result {
@@ -108,6 +133,8 @@ fn cmd_scan(path: &Path, plugins: &[Box<dyn LanguagePlugin>], json: bool) -> any
             "files_scanned": report.files_scanned,
             "total_loc": report.total_loc,
             "score": score,
+            "open_count": score.open_count,
+            "wontfix_count": score.wontfix_count,
         });
         println!("{}", serde_json::to_string_pretty(&payload)?);
     } else {
@@ -123,9 +150,9 @@ fn cmd_next(path: &Path, json: bool) -> anyhow::Result<ExitCode> {
     };
     let Some(issue) = dslp_engine::next_issue(&state) else {
         if json {
-            println!(r#"{{"clean":true,"composite":{}}}"#, state.score.composite);
+            println!(r#"{{"clean":true,"lenient":{},"strict":{}}}"#, state.score.lenient, state.score.strict);
         } else {
-            println!("No open issues. Score {:.1}", state.score.composite);
+            println!("No open issues. Lenient {:.1} / Strict {:.1}", state.score.lenient, state.score.strict);
         }
         return Ok(ExitCode::from(1));
     };
@@ -144,7 +171,10 @@ fn cmd_score(path: &Path, json: bool) -> anyhow::Result<ExitCode> {
     if json {
         println!("{}", serde_json::to_string_pretty(&state.score)?);
     } else {
-        println!("Score: {:.1} / 100   ({} open issue(s))", state.score.composite, state.score.finding_count);
+        let s = &state.score;
+        println!("Lenient: {:.1} / 100", s.lenient);
+        println!("Strict:  {:.1} / 100", s.strict);
+        println!("Gap:     {:.1}   ({} open, {} wontfix, {} LoC)", s.gap(), s.open_count, s.wontfix_count, s.total_loc);
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -161,7 +191,7 @@ fn cmd_findings(path: &Path, json: bool, limit: Option<usize>) -> anyhow::Result
     if json {
         println!("{}", serde_json::to_string_pretty(&view)?);
     } else if view.is_empty() {
-        println!("No open issues. Score {:.1}", state.score.composite);
+        println!("No open issues. Lenient {:.1} / Strict {:.1}", state.score.lenient, state.score.strict);
     } else {
         for issue in &view {
             print_issue_line(issue);
@@ -169,6 +199,43 @@ fn cmd_findings(path: &Path, json: bool, limit: Option<usize>) -> anyhow::Result
         println!();
         println!("{} open issue(s).", view.len());
         print_score_line(&state.score);
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_resolve(path: &Path, fingerprint: &str, json: bool) -> anyhow::Result<ExitCode> {
+    let res = dslp_engine::resolve(path, fingerprint)?;
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "resolved": res.issue.fingerprint,
+                "detector": res.issue.detector,
+                "score": res.score,
+            }))?
+        );
+    } else {
+        println!("Resolved {} ({})", short_fp(&res.issue.fingerprint), res.issue.detector);
+        print_score_line(&res.score);
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_suppress(path: &Path, fingerprint: &str, reason: &str, json: bool) -> anyhow::Result<ExitCode> {
+    let res = dslp_engine::suppress(path, fingerprint, reason)?;
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "suppressed": res.issue.fingerprint,
+                "detector": res.issue.detector,
+                "reason": reason,
+                "score": res.score,
+            }))?
+        );
+    } else {
+        println!("Suppressed {} ({}) — {}", short_fp(&res.issue.fingerprint), res.issue.detector, reason);
+        print_score_line(&res.score);
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -183,17 +250,25 @@ fn no_scan(path: &Path, json: bool) -> anyhow::Result<ExitCode> {
 }
 
 fn print_score_line(s: &Score) {
-    println!("Score: {:.1} / 100   ({} open issue(s))", s.composite, s.finding_count);
+    if s.wontfix_count > 0 {
+        println!(
+            "Lenient {:.1} / Strict {:.1} (gap {:.1})   {} open · {} wontfix",
+            s.lenient, s.strict, s.gap(), s.open_count, s.wontfix_count
+        );
+    } else {
+        println!("Score: {:.1} / 100   ({} open issue(s))", s.lenient, s.open_count);
+    }
 }
 
 fn print_issue_line(issue: &Issue) {
     let line = issue.span.map(|s| s.start.line).unwrap_or(0);
     println!(
-        "[{}] {}  {}:{}",
+        "[{}] {}  {}:{}  ({})",
         severity_label(issue),
         issue.detector,
         issue.file.display(),
         line,
+        short_fp(&issue.fingerprint),
     );
 }
 
@@ -204,6 +279,13 @@ fn print_issue(issue: &Issue) {
         println!();
         println!("  How to fix: {}", hint);
     }
+    println!();
+    println!("  When done: `dslp resolve {}`  (or `dslp suppress {} --reason \"...\"`)", short_fp(&issue.fingerprint), short_fp(&issue.fingerprint));
+}
+
+fn short_fp(fp: &str) -> &str {
+    // Fingerprints are 16 hex chars; the first 8 are plenty to address one.
+    &fp[..fp.len().min(8)]
 }
 
 fn severity_label(i: &Issue) -> &'static str {
