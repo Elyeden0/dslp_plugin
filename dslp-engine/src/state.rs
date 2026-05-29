@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 
 use dslp_core::{Finding, Issue, Score};
 
-pub const STATE_VERSION: u32 = 1;
+/// Current on-disk schema version. Bumped to 2 when `Issue.resolved: bool`
+/// became `Issue.status: Status`. Older state is discarded on load.
+pub const STATE_VERSION: u32 = 2;
 
 /// On-disk state for a single project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,12 +23,24 @@ pub fn state_path(project_root: &Path) -> std::path::PathBuf {
     project_root.join(".dslp").join("state.json")
 }
 
+/// Read state. Returns `Ok(None)` if the file doesn't exist OR if it's an
+/// older schema version (we discard incompatible local cache rather than
+/// migrate — a scan regenerates everything except wontfix marks).
 pub fn load(project_root: &Path) -> anyhow::Result<Option<State>> {
     let path = state_path(project_root);
     if !path.exists() {
         return Ok(None);
     }
     let text = std::fs::read_to_string(&path)?;
+    // Peek at the version before committing to the full deserialize so a v1
+    // file doesn't produce a hard error.
+    let version = serde_json::from_str::<serde_json::Value>(&text)
+        .ok()
+        .and_then(|v| v.get("version").and_then(|n| n.as_u64()))
+        .unwrap_or(0);
+    if version != STATE_VERSION as u64 {
+        return Ok(None);
+    }
     let state: State = serde_json::from_str(&text)?;
     Ok(Some(state))
 }
@@ -40,8 +54,16 @@ pub fn save(project_root: &Path, state: &State) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Reconcile a fresh scan's findings against the previous issue list.
-/// A prior issue not re-detected this scan is marked resolved.
+/// Reconcile a fresh scan's findings against the previous issue list,
+/// producing the new issue list. Pure — does not score. Truth table:
+///
+/// | prior      | re-detected | result            |
+/// |------------|-------------|-------------------|
+/// | (none)     | yes         | Open (new)        |
+/// | Open       | yes         | Open              |
+/// | Resolved   | yes         | Open (regression) |
+/// | Wontfix    | yes         | Wontfix (kept)    |
+/// | any        | no          | Resolved          |
 pub fn merge_issues(
     previous: Option<&State>,
     findings: Vec<Finding>,
@@ -62,7 +84,7 @@ pub fn merge_issues(
         current_fps.insert(f.fingerprint.clone());
         match by_fp.remove(&f.fingerprint) {
             Some(mut existing) => {
-                existing.refresh(f, now);
+                existing.refresh(f, now); // preserves Wontfix, else → Open
                 by_fp.insert(existing.fingerprint.clone(), existing);
             }
             None => {
@@ -72,9 +94,10 @@ pub fn merge_issues(
         }
     }
 
+    // Any prior issue not re-detected this scan is resolved (gone).
     for issue in by_fp.values_mut() {
         if !current_fps.contains(&issue.fingerprint) {
-            issue.resolved = true;
+            issue.resolve();
         }
     }
 
@@ -83,10 +106,34 @@ pub fn merge_issues(
     issues
 }
 
+/// Find exactly one issue by fingerprint prefix. Returns the index, or an
+/// error describing no-match / ambiguous-match.
+pub fn find_by_prefix(issues: &[Issue], prefix: &str) -> anyhow::Result<usize> {
+    let matches: Vec<usize> = issues
+        .iter()
+        .enumerate()
+        .filter(|(_, i)| i.fingerprint.starts_with(prefix))
+        .map(|(idx, _)| idx)
+        .collect();
+    match matches.as_slice() {
+        [] => Err(anyhow::anyhow!("no issue matches fingerprint '{}'", prefix)),
+        [idx] => Ok(*idx),
+        many => {
+            let fps: Vec<&str> = many.iter().map(|&i| issues[i].fingerprint.as_str()).collect();
+            Err(anyhow::anyhow!(
+                "fingerprint '{}' is ambiguous, matches {}: {}",
+                prefix,
+                many.len(),
+                fps.join(", ")
+            ))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dslp_core::Severity;
+    use dslp_core::{Severity, Span, Status};
     use std::path::PathBuf;
 
     fn now() -> DateTime<Utc> {
@@ -105,7 +152,7 @@ mod tests {
             "d",
             Severity::Medium,
             PathBuf::from(file),
-            Some(dslp_core::Span::single_line(1, 0, 0)),
+            Some(Span::single_line(1, 0, 0)),
             "msg",
             None,
             snippet,
@@ -122,31 +169,81 @@ mod tests {
     }
 
     #[test]
-    fn first_scan_creates_issues() {
+    fn new_fingerprint_starts_open() {
         let issues = merge_issues(None, vec![finding("a.rs", "x")], now());
         assert_eq!(issues.len(), 1);
         assert!(issues[0].is_open());
+        assert_eq!(issues[0].first_seen, now());
     }
 
     #[test]
-    fn second_scan_preserves_first_seen_and_updates_last_seen() {
+    fn open_redetected_stays_open_preserves_first_seen() {
         let f = finding("a.rs", "x");
         let s = state_with(merge_issues(None, vec![f.clone()], now()));
         let issues = merge_issues(Some(&s), vec![f], later());
+        assert!(issues[0].is_open());
         assert_eq!(issues[0].first_seen, now());
         assert_eq!(issues[0].last_seen, later());
     }
 
     #[test]
-    fn missing_fingerprint_marks_resolved() {
+    fn open_not_redetected_becomes_resolved() {
         let s = state_with(merge_issues(None, vec![finding("a.rs", "x")], now()));
         let issues = merge_issues(Some(&s), vec![], later());
-        assert!(issues[0].resolved);
+        assert!(issues[0].status.is_resolved());
     }
 
     #[test]
-    fn round_trip_through_disk() {
-        let dir = std::env::temp_dir().join(format!("dslp-engine-state-v1-rt-{}", std::process::id()));
+    fn resolved_redetected_reopens_as_regression() {
+        let f = finding("a.rs", "x");
+        let mut s = state_with(merge_issues(None, vec![f.clone()], now()));
+        s.issues[0].resolve();
+        let issues = merge_issues(Some(&s), vec![f], later());
+        assert!(issues[0].is_open(), "regression should reopen");
+    }
+
+    #[test]
+    fn resolved_not_redetected_stays_resolved() {
+        let mut s = state_with(merge_issues(None, vec![finding("a.rs", "x")], now()));
+        s.issues[0].resolve();
+        let issues = merge_issues(Some(&s), vec![], later());
+        assert!(issues[0].status.is_resolved());
+    }
+
+    #[test]
+    fn wontfix_redetected_stays_wontfix() {
+        let f = finding("a.rs", "x");
+        let mut s = state_with(merge_issues(None, vec![f.clone()], now()));
+        s.issues[0].suppress("intentional", now());
+        let issues = merge_issues(Some(&s), vec![f], later());
+        assert!(matches!(issues[0].status, Status::Wontfix { .. }));
+    }
+
+    #[test]
+    fn wontfix_not_redetected_becomes_resolved() {
+        let mut s = state_with(merge_issues(None, vec![finding("a.rs", "x")], now()));
+        s.issues[0].suppress("intentional", now());
+        let issues = merge_issues(Some(&s), vec![], later());
+        assert!(issues[0].status.is_resolved(), "dismissed thing that's gone → resolved");
+    }
+
+    #[test]
+    fn find_by_prefix_unique_ok() {
+        let issues = merge_issues(None, vec![finding("a.rs", "x")], now());
+        let fp = &issues[0].fingerprint;
+        let idx = find_by_prefix(&issues, &fp[..6]).unwrap();
+        assert_eq!(idx, 0);
+    }
+
+    #[test]
+    fn find_by_prefix_no_match_errors() {
+        let issues = merge_issues(None, vec![finding("a.rs", "x")], now());
+        assert!(find_by_prefix(&issues, "zzzzzzzz").is_err());
+    }
+
+    #[test]
+    fn round_trips_through_disk() {
+        let dir = std::env::temp_dir().join(format!("dslp-engine-state-v2-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let s = state_with(merge_issues(None, vec![finding("a.rs", "x")], now()));
@@ -154,5 +251,20 @@ mod tests {
         let loaded = load(&dir).unwrap().unwrap();
         assert_eq!(loaded.version, STATE_VERSION);
         assert_eq!(loaded.issues.len(), 1);
+    }
+
+    #[test]
+    fn v1_state_is_discarded_on_load() {
+        let dir = std::env::temp_dir().join(format!("dslp-engine-state-v1-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(".dslp")).unwrap();
+        // A v1-shaped file with `resolved: bool` and old Score shape.
+        std::fs::write(
+            dir.join(".dslp/state.json"),
+            r#"{"version":1,"last_scan":"2026-05-01T20:00:00Z","score":{"composite":90.0,"total_loc":100,"finding_count":1,"by_detector":{}},"issues":[]}"#,
+        )
+        .unwrap();
+        let loaded = load(&dir).unwrap();
+        assert!(loaded.is_none(), "v1 state should be discarded, not error");
     }
 }
