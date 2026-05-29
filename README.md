@@ -2,7 +2,7 @@
 
 A Rust port of the analyse → score → "what to fix" core of [desloppify](https://github.com/peteromallet/desloppify). Scans your codebase, scores it 0-100, and tells your AI agent (or you) what to fix next.
 
-This is **v0.8 in progress**: Rust + TypeScript/JavaScript + Go + Python + C + C++ language support plus React, Next.js, and Nuxt framework-aware detectors that auto-activate on the right projects, composite score 0-100, persistent state. See [docs/superpowers/specs/2026-05-01-rust-port-design.md](docs/superpowers/specs/2026-05-01-rust-port-design.md) for the full design and what's deliberately deferred.
+This is **v0.9 in progress**: Rust + TypeScript/JavaScript + Go + Python + C + C++ language support plus React, Next.js, and Nuxt framework-aware detectors that auto-activate on the right projects, composite score 0-100, persistent state, and a resolve/suppress workflow loop. See [docs/superpowers/specs/2026-05-01-rust-port-design.md](docs/superpowers/specs/2026-05-01-rust-port-design.md) and [docs/superpowers/specs/2026-05-29-workflow-loop-design.md](docs/superpowers/specs/2026-05-29-workflow-loop-design.md) for the full design and what's deliberately deferred.
 
 ## Install
 
@@ -23,13 +23,19 @@ dslp scan --path /path/to/project
 # Show the highest-priority open issue
 dslp next --path /path/to/project
 
-# Print the score (no rescan)
+# Print the score: lenient / strict / gap (no rescan)
 dslp score --path /path/to/project
 
 # List all open issues in priority order
 dslp findings --path /path/to/project
 dslp findings --limit 10 --path /path/to/project
+
+# Work the queue: mark an issue fixed, or dismiss it
+dslp resolve <fingerprint> --path /path/to/project
+dslp suppress <fingerprint> --reason "intentional here" --path /path/to/project
 ```
+
+Fingerprints accept a unique prefix (the 8-char id shown in `findings`/`next`).
 
 Every command supports `--json` for machine-readable output suitable for piping into an agent:
 
@@ -143,13 +149,29 @@ Every key is optional; missing values fall back to defaults.
 
 ## Scoring
 
+Two scores, both 0 (worst) to 100 (perfect), from the same formula:
+
 ```
 penalty = sum of severity weights (Low=1, Medium=3, High=8, Critical=20)
 size    = max(1, total_loc / 1000)
 score   = 100 * exp(-penalty / (size * 25))
 ```
 
-A single composite 0-100 score, computed from open (unresolved) issues. Larger codebases tolerate more penalty before the score drops. Subjective LLM dimensions are still deferred to a later slice.
+- **lenient** counts only Open issues — suppressing (wontfix) an issue raises it.
+- **strict** counts Open **and** Wontfix issues — dismissing an issue does not improve it.
+- **gap** = lenient − strict. A clean codebase has both at 100, gap 0. A codebase where you've dismissed real issues has an inflated lenient and an exposing gap. This is the anti-gaming mechanic: you can't reach a real 100 by suppressing everything, because strict stays low.
+
+Larger codebases tolerate more penalty before the score drops. Subjective LLM dimensions are still deferred to a later slice.
+
+## Issue lifecycle
+
+Each issue has a status:
+
+- **Open** — actionable; counts against the score and appears in `next`/`findings`.
+- **Resolved** — `dslp resolve` marks it optimistically fixed. It's removed from the queue, but a later `scan` that re-detects the fingerprint **reopens it as a regression** — `resolve` is a claim the next scan verifies.
+- **Wontfix** — `dslp suppress --reason` dismisses it as a standing decision. It survives rescans, stays out of the queue, but still counts toward `strict`.
+
+State persists in `.dslp/state.json` (schema v2). Old v1 state is discarded on load.
 
 ## Architecture
 
@@ -182,7 +204,8 @@ In order:
 6. ✅ v0.6 — Go language plugin (`file-size`, `complexity`, `length`); split CLI integration tests one-per-plugin
 7. ✅ v0.7 — Python language plugin (`file-size`, `complexity`, `length`) — handles `match` statements and nested defs
 8. ✅ v0.8 — C and C++ language plugins (`file-size`, `complexity`, `length`); the original 7-language order is now complete
-9. Later: workflow loop (`resolve`/`suppress`, anti-gaming score split); LLM-backed subjective review; plan/triage workflow; scorecard badge; `--lang` monorepo support; autofix.
+9. ✅ v0.9 — Workflow loop: `resolve` / `suppress` commands, Open/Resolved/Wontfix status model, lenient-vs-strict anti-gaming score
+10. Later: `dslp-lang-common` extraction; LLM-backed subjective review; plan/triage workflow; scorecard badge; `--lang` monorepo support; autofix.
 
 ## Performance
 
@@ -199,7 +222,7 @@ time ./target/release/dslp scan --path .
 cargo test --workspace
 ```
 
-v0.8 added C/C++ parser glue and the `c.*`/`cpp.*` detectors with shared declarator-identifier extraction.
+v0.8 added C/C++ parser glue and the `c.*`/`cpp.*` detectors with shared declarator-identifier extraction. v0.9 adds the workflow loop: the `Status` enum and its serde, the six-row merge truth table (Open/Resolved/Wontfix × re-detected/not), lenient-vs-strict scoring properties (suppressing widens the gap, resolving improves both, lenient ≥ strict always), fingerprint-prefix matching, `resolve`/`suppress` ops, v1-state-discard-on-load, and end-to-end CLI tests for the full scan → suppress → rescan-preserves-wontfix flow.
 
 ## License
 
