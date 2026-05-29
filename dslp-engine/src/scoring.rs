@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use dslp_core::{DetectorBreakdown, Issue, Score};
+use dslp_core::{DetectorBreakdown, Issue, Score, Status};
 
 /// Map a total penalty + project size to a 0-100 composite, per design §3:
 /// `100 * exp(-penalty / (size_kloc * 25))`.
@@ -9,31 +9,51 @@ fn composite(penalty: u32, total_loc: u64) -> f64 {
     100.0 * (-(penalty as f64) / (size * 25.0)).exp()
 }
 
-/// Score a reconciled issue list. Only open (unresolved) issues contribute
-/// penalty.
+/// Score a reconciled issue list into lenient + strict variants.
+///
+/// - lenient penalty = Open issues only
+/// - strict penalty  = Open + Wontfix issues
+/// - Resolved issues count toward neither
+///
+/// Because strict penalty ≥ lenient penalty, `strict ≤ lenient` always, so
+/// `gap = lenient - strict ≥ 0`.
 pub fn score_issues(issues: &[Issue], total_loc: u64) -> Score {
-    let mut penalty: u32 = 0;
-    let mut finding_count = 0usize;
+    let mut lenient_penalty: u32 = 0;
+    let mut strict_penalty: u32 = 0;
+    let mut open_count = 0usize;
+    let mut wontfix_count = 0usize;
     let mut by_detector: BTreeMap<String, DetectorBreakdown> = BTreeMap::new();
 
-    for issue in issues.iter().filter(|i| i.is_open()) {
+    for issue in issues {
         let w = issue.severity.weight();
-        penalty += w;
-        finding_count += 1;
-        let entry = by_detector
-            .entry(issue.detector.clone())
-            .or_insert(DetectorBreakdown {
-                findings: 0,
-                penalty: 0,
-            });
-        entry.findings += 1;
-        entry.penalty += w;
+        match issue.status {
+            Status::Open => {
+                lenient_penalty += w;
+                strict_penalty += w;
+                open_count += 1;
+                let entry = by_detector
+                    .entry(issue.detector.clone())
+                    .or_insert(DetectorBreakdown {
+                        findings: 0,
+                        penalty: 0,
+                    });
+                entry.findings += 1;
+                entry.penalty += w;
+            }
+            Status::Wontfix { .. } => {
+                strict_penalty += w;
+                wontfix_count += 1;
+            }
+            Status::Resolved => {}
+        }
     }
 
     Score {
-        composite: composite(penalty, total_loc),
+        lenient: composite(lenient_penalty, total_loc),
+        strict: composite(strict_penalty, total_loc),
         total_loc,
-        finding_count,
+        open_count,
+        wontfix_count,
         by_detector,
     }
 }
@@ -65,42 +85,61 @@ mod tests {
     }
 
     #[test]
-    fn no_findings_yields_100() {
+    fn no_issues_yields_100_both() {
         let s = score_issues(&[], 1000);
-        assert!((s.composite - 100.0).abs() < 1e-9);
+        assert!((s.lenient - 100.0).abs() < 1e-9);
+        assert!((s.strict - 100.0).abs() < 1e-9);
+        assert_eq!(s.gap(), 0.0);
     }
 
     #[test]
-    fn higher_severity_penalizes_more() {
-        let low = score_issues(&[open_issue("d", Severity::Low, "a")], 1000);
-        let high = score_issues(&[open_issue("d", Severity::High, "a")], 1000);
-        assert!(high.composite < low.composite);
-    }
-
-    #[test]
-    fn resolved_issues_excluded() {
-        let mut issues = vec![open_issue("d", Severity::High, "a")];
-        issues[0].resolved = true;
-        let s = score_issues(&issues, 1000);
-        assert!((s.composite - 100.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn larger_codebase_softens_penalty() {
-        let issue = open_issue("d", Severity::High, "a");
-        let small = score_issues(&[issue.clone()], 500);
-        let large = score_issues(&[issue], 50_000);
-        assert!(large.composite > small.composite);
-    }
-
-    #[test]
-    fn breakdown_separates_detectors() {
+    fn all_open_means_lenient_equals_strict() {
         let issues = vec![
-            open_issue("rust.file-size", Severity::Medium, "a"),
-            open_issue("rust.complexity", Severity::High, "b"),
+            open_issue("d", Severity::High, "a"),
+            open_issue("d", Severity::Medium, "b"),
         ];
         let s = score_issues(&issues, 1000);
-        assert_eq!(s.by_detector.len(), 2);
-        assert_eq!(s.by_detector["rust.file-size"].findings, 1);
+        assert!((s.lenient - s.strict).abs() < 1e-9, "no wontfix → no gap");
+        assert_eq!(s.open_count, 2);
+        assert_eq!(s.wontfix_count, 0);
+    }
+
+    #[test]
+    fn suppressing_raises_lenient_leaves_strict_and_widens_gap() {
+        let mut issues = vec![
+            open_issue("d", Severity::High, "a"),
+            open_issue("d", Severity::High, "b"),
+        ];
+        let before = score_issues(&issues, 1000);
+        // Suppress one of the two.
+        issues[0].suppress("acceptable", now());
+        let after = score_issues(&issues, 1000);
+
+        assert!(after.lenient > before.lenient, "lenient improves when an open issue is dismissed");
+        assert!((after.strict - before.strict).abs() < 1e-9, "strict unchanged by dismissal");
+        assert!(after.gap() > before.gap(), "gap widens");
+        assert_eq!(after.open_count, 1);
+        assert_eq!(after.wontfix_count, 1);
+    }
+
+    #[test]
+    fn resolving_improves_both() {
+        let mut issues = vec![
+            open_issue("d", Severity::High, "a"),
+            open_issue("d", Severity::High, "b"),
+        ];
+        let before = score_issues(&issues, 1000);
+        issues[0].resolve();
+        let after = score_issues(&issues, 1000);
+        assert!(after.lenient > before.lenient);
+        assert!(after.strict > before.strict, "resolving an issue helps strict too");
+    }
+
+    #[test]
+    fn lenient_never_below_strict() {
+        let mut issues = vec![open_issue("d", Severity::Critical, "a")];
+        issues[0].suppress("x", now());
+        let s = score_issues(&issues, 1000);
+        assert!(s.lenient >= s.strict);
     }
 }

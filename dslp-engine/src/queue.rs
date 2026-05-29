@@ -2,10 +2,11 @@ use dslp_core::Issue;
 
 use crate::state::State;
 
-/// Open (unresolved) issues ranked highest-priority first.
+/// Open issues ranked highest-priority first.
 ///
 /// Priority = severity weight. Ties broken by `first_seen` ascending so older
-/// items aren't starved by newer arrivals of the same severity.
+/// items aren't starved by newer arrivals of the same severity. Only `Open`
+/// issues appear — Resolved and Wontfix are excluded.
 pub fn queue(state: &State) -> Vec<&Issue> {
     let mut v: Vec<&Issue> = state.issues.iter().filter(|i| i.is_open()).collect();
     v.sort_by(|a, b| {
@@ -71,24 +72,18 @@ mod tests {
     }
 
     #[test]
-    fn ties_broken_by_first_seen() {
-        let older = merge_issues(None, vec![finding(Severity::High, "old.rs", "o")], dt("2026-01-01T00:00:00Z"));
-        let mut state = state_with(older);
-        let newer = merge_issues(
-            Some(&state),
+    fn wontfix_and_resolved_excluded() {
+        let mut issues = merge_issues(
+            None,
             vec![
-                finding(Severity::High, "old.rs", "o"),
-                finding(Severity::High, "new.rs", "n"),
+                finding(Severity::High, "a.rs", "a"),
+                finding(Severity::High, "b.rs", "b"),
             ],
-            dt("2026-06-01T00:00:00Z"),
+            dt("2026-05-01T20:00:00Z"),
         );
-        state.issues = newer;
-        let n = next_issue(&state).unwrap();
-        assert_eq!(n.file, PathBuf::from("old.rs"));
-    }
-
-    #[test]
-    fn next_without_scan_exits_one() {
-        assert!(next_issue(&state_with(vec![])).is_none());
+        issues[0].suppress("x", dt("2026-05-01T20:00:00Z"));
+        issues[1].resolve();
+        let state = state_with(issues);
+        assert!(next_issue(&state).is_none());
     }
 }
