@@ -5,7 +5,7 @@ mod common;
 
 use std::process::Command;
 
-use common::{dslp_bin, rust_fixture};
+use common::{dslp_bin, fresh_dir, rust_fixture};
 
 /// Pull the first fingerprint out of `findings --json`.
 fn first_fingerprint(project: &std::path::Path) -> String {
@@ -204,6 +204,55 @@ fn backlog_empty_before_any_suppress() {
     assert!(out.status.success());
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     assert!(v.as_array().unwrap().is_empty());
+}
+
+#[test]
+fn badge_uses_strict_score_by_default() {
+    let project = rust_fixture("wf-badge");
+    suppress_first(&project);
+    let s = score_json(&project);
+    let strict = s["strict"].as_f64().unwrap();
+
+    let out = Command::new(dslp_bin())
+        .args(["badge", "--path"])
+        .arg(&project)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "badge failed: {:?}", out);
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["schemaVersion"], 1);
+    assert_eq!(v["message"], format!("{:.0}", strict), "badge should default to the strict score");
+}
+
+#[test]
+fn badge_lenient_flag_uses_lenient_score() {
+    let project = rust_fixture("wf-badge-lenient");
+    suppress_first(&project);
+    let s = score_json(&project);
+    let lenient = s["lenient"].as_f64().unwrap();
+
+    let out = Command::new(dslp_bin())
+        .args(["badge", "--lenient", "--path"])
+        .arg(&project)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["message"], format!("{:.0}", lenient));
+}
+
+#[test]
+fn badge_without_scan_is_valid_placeholder() {
+    let project = fresh_dir("wf-badge-noscan");
+    let out = Command::new(dslp_bin())
+        .args(["badge", "--path"])
+        .arg(&project)
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "no-scan badge should exit non-zero");
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["color"], "lightgrey");
+    assert_eq!(v["message"], "no scan");
 }
 
 #[test]
