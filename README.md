@@ -37,6 +37,10 @@ dslp plan --limit 5 --path /path/to/project
 # The wontfix backlog: standing decisions to not fix something
 dslp backlog --path /path/to/project
 
+# Emit a shields.io endpoint-badge payload (strict score by default)
+dslp badge --path /path/to/project > badge.json
+# ![dslp](https://img.shields.io/endpoint?url=<raw-url-of-badge.json>)
+
 # Work the queue: mark an issue fixed, or dismiss it
 dslp resolve <fingerprint> --path /path/to/project
 dslp suppress <fingerprint> --reason "intentional here" --path /path/to/project
@@ -44,7 +48,7 @@ dslp suppress <fingerprint> --reason "intentional here" --path /path/to/project
 
 Fingerprints accept a unique prefix (the 8-char id shown in `findings`/`next`).
 
-Every command supports `--json` for machine-readable output suitable for piping into an agent:
+Every command supports `--json` for machine-readable output suitable for piping into an agent (`badge` has no `--json` flag — its only output is the badge payload itself):
 
 ```bash
 dslp scan --json --path .
@@ -186,11 +190,11 @@ State persists in `.dslp/state.json` (schema v2). Old v1 state is discarded on l
 
 ## Architecture
 
-Cargo workspace:
+Cargo workspace, six crates:
 
 - `dslp-core` — domain types (`Issue`, `Finding`, `Score`, `LanguagePlugin` trait). No I/O, no parsers.
 - `dslp-base` — file discovery (gitignore-aware), config loading, tree-sitter glue.
-- `dslp-engine` — scan/score/queue/plan/backlog/state pipeline.
+- `dslp-engine` — scan/score/queue/plan/backlog/badge/state pipeline.
 - `dslp-lang-common` — shared detector primitives (`count_lines`, `cyclomatic`, `span_of`, `node_length_lines`, `finding_at_node`, `file_size`) used by every language plugin.
 - `dslp-lang-rust` — Rust language plugin.
 - `dslp-lang-ts` — TypeScript / JavaScript language plugin.
@@ -218,11 +222,12 @@ In order:
 9. ✅ v0.9 — Workflow loop: `resolve` / `suppress` commands, Open/Resolved/Wontfix status model, lenient-vs-strict anti-gaming score
 10. ✅ `dslp-lang-common` extraction — shared `count_lines`/`cyclomatic`/`span_of`/`node_length_lines`/`finding_at_node`/`file_size` primitives, all 6 language plugins wired to use them
 11. ✅ v0.10 — Triage workflow: `plan` (open issues grouped by file, ranked by total severity penalty) and `backlog` (the wontfix list, previously invisible outside raw state)
-12. Later: LLM-backed subjective review; scorecard badge; `--lang` monorepo support; autofix.
+12. ✅ v0.11 — Scorecard badge: `dslp badge` emits a shields.io endpoint-badge payload, strict score by default
+13. Later: LLM-backed subjective review; `--lang` monorepo support; autofix.
 
 ## Performance
 
-Release-mode scan of this very workspace completes in well under 100ms end-to-end on a Linux laptop. The hot path is single-pass tree-sitter parsing per file with no ASTs round-tripped to disk.
+Release-mode scan of this very workspace (5 crates, ~2,100 LoC) completes in **~26 ms** end-to-end on a Linux laptop. The hot path is single-pass tree-sitter parsing per file with no ASTs round-tripped to disk.
 
 ```bash
 cargo build --release --bin dslp
@@ -235,7 +240,7 @@ time ./target/release/dslp scan --path .
 cargo test --workspace
 ```
 
-178 tests as of v0.10. v0.8 added C/C++ parser glue and the `c.*`/`cpp.*` detectors with shared declarator-identifier extraction. v0.9 adds the workflow loop: the `Status` enum and its serde, the six-row merge truth table (Open/Resolved/Wontfix × re-detected/not), lenient-vs-strict scoring properties (suppressing widens the gap, resolving improves both, lenient ≥ strict always), fingerprint-prefix matching, `resolve`/`suppress` ops, v1-state-discard-on-load, and end-to-end CLI tests for the full scan → suppress → rescan-preserves-wontfix flow. v0.10 adds `plan` (grouping-by-file, penalty ranking, tie-breaking by oldest `first_seen`, Wontfix/Resolved exclusion) and `backlog` (Wontfix-only filtering, most-recently-suppressed-first ordering) with unit and CLI end-to-end coverage.
+185 tests as of v0.11. v0.8 added C/C++ parser glue and the `c.*`/`cpp.*` detectors with shared declarator-identifier extraction. v0.9 adds the workflow loop: the `Status` enum and its serde, the six-row merge truth table (Open/Resolved/Wontfix × re-detected/not), lenient-vs-strict scoring properties (suppressing widens the gap, resolving improves both, lenient ≥ strict always), fingerprint-prefix matching, `resolve`/`suppress` ops, v1-state-discard-on-load, and end-to-end CLI tests for the full scan → suppress → rescan-preserves-wontfix flow. v0.10 adds `plan` (grouping-by-file, penalty ranking, tie-breaking by oldest `first_seen`, Wontfix/Resolved exclusion) and `backlog` (Wontfix-only filtering, most-recently-suppressed-first ordering) with unit and CLI end-to-end coverage. v0.11 adds `badge`: color-threshold table, strict-vs-lenient score selection, and a no-scan placeholder payload.
 
 ## License
 
