@@ -25,6 +25,11 @@ enum Command {
         /// Emit machine-readable JSON to stdout instead of human text
         #[arg(long, default_value_t = false)]
         json: bool,
+        /// Restrict to one language/framework plugin (e.g. `go`, `typescript`, `react`) —
+        /// scores and tracks that language independently in `.dslp/state-<lang>.json`,
+        /// for monorepos with more than one language under the same --path
+        #[arg(long)]
+        lang: Option<String>,
     },
     /// Show the highest-priority open issue from the last scan
     Next {
@@ -32,6 +37,8 @@ enum Command {
         path: PathBuf,
         #[arg(long, default_value_t = false)]
         json: bool,
+        #[arg(long)]
+        lang: Option<String>,
     },
     /// Print the latest score: lenient / strict / gap (no rescan)
     Score {
@@ -39,6 +46,8 @@ enum Command {
         path: PathBuf,
         #[arg(long, default_value_t = false)]
         json: bool,
+        #[arg(long)]
+        lang: Option<String>,
     },
     /// List all open issues in priority order
     Findings {
@@ -49,6 +58,8 @@ enum Command {
         /// Cap the number of issues shown (default: all)
         #[arg(long)]
         limit: Option<usize>,
+        #[arg(long)]
+        lang: Option<String>,
     },
     /// Group open issues by file, ranked by total severity penalty — a batch triage plan
     Plan {
@@ -59,6 +70,8 @@ enum Command {
         /// Cap the number of files shown (default: all)
         #[arg(long)]
         limit: Option<usize>,
+        #[arg(long)]
+        lang: Option<String>,
     },
     /// List wontfix (suppressed) issues — the standing-decision backlog
     Backlog {
@@ -66,6 +79,8 @@ enum Command {
         path: PathBuf,
         #[arg(long, default_value_t = false)]
         json: bool,
+        #[arg(long)]
+        lang: Option<String>,
     },
     /// Emit a shields.io endpoint-badge payload for the score (strict by default — see Scoring)
     Badge {
@@ -77,6 +92,8 @@ enum Command {
         /// Use the lenient score instead of strict (strict is the anti-gaming default)
         #[arg(long, default_value_t = false)]
         lenient: bool,
+        #[arg(long)]
+        lang: Option<String>,
     },
     /// Mark an issue fixed (optimistic — a later scan reopens it if it's still there)
     Resolve {
@@ -86,6 +103,8 @@ enum Command {
         path: PathBuf,
         #[arg(long, default_value_t = false)]
         json: bool,
+        #[arg(long)]
+        lang: Option<String>,
     },
     /// Dismiss an issue as wontfix (still counts toward the strict score)
     Suppress {
@@ -98,6 +117,8 @@ enum Command {
         path: PathBuf,
         #[arg(long, default_value_t = false)]
         json: bool,
+        #[arg(long)]
+        lang: Option<String>,
     },
 }
 
@@ -117,16 +138,18 @@ fn main() -> ExitCode {
     ];
 
     let result = match cli.command {
-        Command::Scan { path, json } => cmd_scan(&path, &plugins, json),
-        Command::Next { path, json } => cmd_next(&path, json),
-        Command::Score { path, json } => cmd_score(&path, json),
-        Command::Findings { path, json, limit } => cmd_findings(&path, json, limit),
-        Command::Plan { path, json, limit } => cmd_plan(&path, json, limit),
-        Command::Backlog { path, json } => cmd_backlog(&path, json),
-        Command::Badge { path, label, lenient } => cmd_badge(&path, &label, lenient),
-        Command::Resolve { fingerprint, path, json } => cmd_resolve(&path, &fingerprint, json),
-        Command::Suppress { fingerprint, reason, path, json } => {
-            cmd_suppress(&path, &fingerprint, &reason, json)
+        Command::Scan { path, json, lang } => cmd_scan(&path, plugins, json, lang.as_deref()),
+        Command::Next { path, json, lang } => cmd_next(&path, json, lang.as_deref()),
+        Command::Score { path, json, lang } => cmd_score(&path, json, lang.as_deref()),
+        Command::Findings { path, json, limit, lang } => cmd_findings(&path, json, limit, lang.as_deref()),
+        Command::Plan { path, json, limit, lang } => cmd_plan(&path, json, limit, lang.as_deref()),
+        Command::Backlog { path, json, lang } => cmd_backlog(&path, json, lang.as_deref()),
+        Command::Badge { path, label, lenient, lang } => cmd_badge(&path, &label, lenient, lang.as_deref()),
+        Command::Resolve { fingerprint, path, json, lang } => {
+            cmd_resolve(&path, lang.as_deref(), &fingerprint, json)
+        }
+        Command::Suppress { fingerprint, reason, path, json, lang } => {
+            cmd_suppress(&path, lang.as_deref(), &fingerprint, &reason, json)
         }
     };
 
@@ -156,8 +179,25 @@ fn reset_sigpipe() {
 #[cfg(not(unix))]
 fn reset_sigpipe() {}
 
-fn cmd_scan(path: &Path, plugins: &[Box<dyn LanguagePlugin>], json: bool) -> anyhow::Result<ExitCode> {
-    let report = dslp_engine::run_scan(path, plugins)?;
+fn cmd_scan(
+    path: &Path,
+    plugins: Vec<Box<dyn LanguagePlugin>>,
+    json: bool,
+    lang: Option<&str>,
+) -> anyhow::Result<ExitCode> {
+    let selected = match lang {
+        Some(id) => {
+            let known: Vec<&'static str> = plugins.iter().map(|p| p.id()).collect();
+            let matched: Vec<Box<dyn LanguagePlugin>> =
+                plugins.into_iter().filter(|p| p.id() == id).collect();
+            if matched.is_empty() {
+                anyhow::bail!("unknown --lang '{id}'. Valid values: {}", known.join(", "));
+            }
+            matched
+        }
+        None => plugins,
+    };
+    let report = dslp_engine::run_scan(path, &selected, lang)?;
     let score = &report.state.score;
     if json {
         let payload = serde_json::json!({
@@ -175,9 +215,9 @@ fn cmd_scan(path: &Path, plugins: &[Box<dyn LanguagePlugin>], json: bool) -> any
     Ok(ExitCode::SUCCESS)
 }
 
-fn cmd_next(path: &Path, json: bool) -> anyhow::Result<ExitCode> {
-    let Some(state) = dslp_engine::load(path)? else {
-        return no_scan(path, json);
+fn cmd_next(path: &Path, json: bool, lang: Option<&str>) -> anyhow::Result<ExitCode> {
+    let Some(state) = dslp_engine::load(path, lang)? else {
+        return no_scan(path, lang, json);
     };
     let Some(issue) = dslp_engine::next_issue(&state) else {
         if json {
@@ -195,9 +235,9 @@ fn cmd_next(path: &Path, json: bool) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-fn cmd_score(path: &Path, json: bool) -> anyhow::Result<ExitCode> {
-    let Some(state) = dslp_engine::load(path)? else {
-        return no_scan(path, json);
+fn cmd_score(path: &Path, json: bool, lang: Option<&str>) -> anyhow::Result<ExitCode> {
+    let Some(state) = dslp_engine::load(path, lang)? else {
+        return no_scan(path, lang, json);
     };
     if json {
         println!("{}", serde_json::to_string_pretty(&state.score)?);
@@ -210,9 +250,9 @@ fn cmd_score(path: &Path, json: bool) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-fn cmd_findings(path: &Path, json: bool, limit: Option<usize>) -> anyhow::Result<ExitCode> {
-    let Some(state) = dslp_engine::load(path)? else {
-        return no_scan(path, json);
+fn cmd_findings(path: &Path, json: bool, limit: Option<usize>, lang: Option<&str>) -> anyhow::Result<ExitCode> {
+    let Some(state) = dslp_engine::load(path, lang)? else {
+        return no_scan(path, lang, json);
     };
     let issues = dslp_engine::queue(&state);
     let view: Vec<&Issue> = match limit {
@@ -234,9 +274,9 @@ fn cmd_findings(path: &Path, json: bool, limit: Option<usize>) -> anyhow::Result
     Ok(ExitCode::SUCCESS)
 }
 
-fn cmd_plan(path: &Path, json: bool, limit: Option<usize>) -> anyhow::Result<ExitCode> {
-    let Some(state) = dslp_engine::load(path)? else {
-        return no_scan(path, json);
+fn cmd_plan(path: &Path, json: bool, limit: Option<usize>, lang: Option<&str>) -> anyhow::Result<ExitCode> {
+    let Some(state) = dslp_engine::load(path, lang)? else {
+        return no_scan(path, lang, json);
     };
     let entries = dslp_engine::plan(&state);
     let view: Vec<_> = match limit {
@@ -264,9 +304,9 @@ fn cmd_plan(path: &Path, json: bool, limit: Option<usize>) -> anyhow::Result<Exi
     Ok(ExitCode::SUCCESS)
 }
 
-fn cmd_backlog(path: &Path, json: bool) -> anyhow::Result<ExitCode> {
-    let Some(state) = dslp_engine::load(path)? else {
-        return no_scan(path, json);
+fn cmd_backlog(path: &Path, json: bool, lang: Option<&str>) -> anyhow::Result<ExitCode> {
+    let Some(state) = dslp_engine::load(path, lang)? else {
+        return no_scan(path, lang, json);
     };
     let issues = dslp_engine::backlog(&state);
     if json {
@@ -294,8 +334,8 @@ fn cmd_backlog(path: &Path, json: bool) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-fn cmd_badge(path: &Path, label: &str, lenient: bool) -> anyhow::Result<ExitCode> {
-    let Some(state) = dslp_engine::load(path)? else {
+fn cmd_badge(path: &Path, label: &str, lenient: bool, lang: Option<&str>) -> anyhow::Result<ExitCode> {
+    let Some(state) = dslp_engine::load(path, lang)? else {
         println!("{}", serde_json::to_string_pretty(&dslp_engine::Badge::no_scan(label))?);
         return Ok(ExitCode::from(1));
     };
@@ -305,8 +345,8 @@ fn cmd_badge(path: &Path, label: &str, lenient: bool) -> anyhow::Result<ExitCode
     Ok(ExitCode::SUCCESS)
 }
 
-fn cmd_resolve(path: &Path, fingerprint: &str, json: bool) -> anyhow::Result<ExitCode> {
-    let res = dslp_engine::resolve(path, fingerprint)?;
+fn cmd_resolve(path: &Path, lang: Option<&str>, fingerprint: &str, json: bool) -> anyhow::Result<ExitCode> {
+    let res = dslp_engine::resolve(path, lang, fingerprint)?;
     if json {
         println!(
             "{}",
@@ -323,8 +363,8 @@ fn cmd_resolve(path: &Path, fingerprint: &str, json: bool) -> anyhow::Result<Exi
     Ok(ExitCode::SUCCESS)
 }
 
-fn cmd_suppress(path: &Path, fingerprint: &str, reason: &str, json: bool) -> anyhow::Result<ExitCode> {
-    let res = dslp_engine::suppress(path, fingerprint, reason)?;
+fn cmd_suppress(path: &Path, lang: Option<&str>, fingerprint: &str, reason: &str, json: bool) -> anyhow::Result<ExitCode> {
+    let res = dslp_engine::suppress(path, lang, fingerprint, reason)?;
     if json {
         println!(
             "{}",
@@ -342,11 +382,12 @@ fn cmd_suppress(path: &Path, fingerprint: &str, reason: &str, json: bool) -> any
     Ok(ExitCode::SUCCESS)
 }
 
-fn no_scan(path: &Path, json: bool) -> anyhow::Result<ExitCode> {
+fn no_scan(path: &Path, lang: Option<&str>, json: bool) -> anyhow::Result<ExitCode> {
+    let state_path = dslp_engine::state_path(path, lang);
     if json {
         println!(r#"{{"error":"no_scan","message":"run `dslp scan` first"}}"#);
     } else {
-        eprintln!("No scan found at {}/.dslp/state.json. Run `dslp scan` first.", path.display());
+        eprintln!("No scan found at {}. Run `dslp scan` first.", state_path.display());
     }
     Ok(ExitCode::from(1))
 }

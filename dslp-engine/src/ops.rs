@@ -16,40 +16,40 @@ pub struct OpResult {
     pub score: Score,
 }
 
-fn load_or_err(project_root: &Path) -> anyhow::Result<crate::state::State> {
-    load(project_root)?.ok_or_else(|| {
+fn load_or_err(project_root: &Path, lang: Option<&str>) -> anyhow::Result<crate::state::State> {
+    load(project_root, lang)?.ok_or_else(|| {
         anyhow::anyhow!(
-            "no scan found at {}/.dslp/state.json — run `dslp scan` first",
-            project_root.display()
+            "no scan found at {} — run `dslp scan` first",
+            crate::state::state_path(project_root, lang).display()
         )
     })
 }
 
 /// Mark the issue matching `fp_prefix` as Resolved (optimistic — a later scan
 /// that re-detects it will reopen it as a regression).
-pub fn resolve(project_root: &Path, fp_prefix: &str) -> anyhow::Result<OpResult> {
-    let mut state = load_or_err(project_root)?;
+pub fn resolve(project_root: &Path, lang: Option<&str>, fp_prefix: &str) -> anyhow::Result<OpResult> {
+    let mut state = load_or_err(project_root, lang)?;
     let idx = find_by_prefix(&state.issues, fp_prefix)?;
     state.issues[idx].resolve();
-    finish(project_root, state, idx)
+    finish(project_root, lang, state, idx)
 }
 
 /// Mark the issue matching `fp_prefix` as Wontfix with a reason (a standing
 /// decision that survives rescans but still counts toward the strict score).
-pub fn suppress(project_root: &Path, fp_prefix: &str, reason: &str) -> anyhow::Result<OpResult> {
+pub fn suppress(project_root: &Path, lang: Option<&str>, fp_prefix: &str, reason: &str) -> anyhow::Result<OpResult> {
     if reason.trim().is_empty() {
         return Err(anyhow::anyhow!("suppress requires a non-empty --reason"));
     }
-    let mut state = load_or_err(project_root)?;
+    let mut state = load_or_err(project_root, lang)?;
     let idx = find_by_prefix(&state.issues, fp_prefix)?;
     state.issues[idx].suppress(reason, Utc::now());
-    finish(project_root, state, idx)
+    finish(project_root, lang, state, idx)
 }
 
-fn finish(project_root: &Path, mut state: crate::state::State, idx: usize) -> anyhow::Result<OpResult> {
+fn finish(project_root: &Path, lang: Option<&str>, mut state: crate::state::State, idx: usize) -> anyhow::Result<OpResult> {
     state.score = score_issues(&state.issues, state.score.total_loc);
     let issue = state.issues[idx].clone();
-    save(project_root, &state)?;
+    save(project_root, lang, &state)?;
     Ok(OpResult {
         issue,
         score: state.score,
@@ -95,7 +95,7 @@ mod tests {
             score: crate::scoring::score_issues(&issues, 1000),
             issues,
         };
-        save(dir, &state).unwrap();
+        save(dir, None, &state).unwrap();
         fp
     }
 
@@ -103,7 +103,7 @@ mod tests {
     fn resolve_marks_resolved_and_rescores() {
         let dir = fixture_dir("resolve");
         let fp = seed(&dir);
-        let res = resolve(&dir, &fp[..6]).unwrap();
+        let res = resolve(&dir, None, &fp[..6]).unwrap();
         assert!(res.issue.status.is_resolved());
         assert!((res.score.lenient - 100.0).abs() < 1e-9, "resolving the only issue → lenient 100");
     }
@@ -112,14 +112,14 @@ mod tests {
     fn suppress_requires_reason() {
         let dir = fixture_dir("noreason");
         let fp = seed(&dir);
-        assert!(suppress(&dir, &fp[..6], "   ").is_err());
+        assert!(suppress(&dir, None, &fp[..6], "   ").is_err());
     }
 
     #[test]
     fn suppress_sets_wontfix_and_widens_gap() {
         let dir = fixture_dir("suppress");
         let fp = seed(&dir);
-        let res = suppress(&dir, &fp[..6], "acceptable in this context").unwrap();
+        let res = suppress(&dir, None, &fp[..6], "acceptable in this context").unwrap();
         assert!(matches!(res.issue.status, Status::Wontfix { .. }));
         // lenient improves (no open issues), strict stays penalized → gap > 0
         assert!((res.score.lenient - 100.0).abs() < 1e-9);
@@ -130,6 +130,6 @@ mod tests {
     #[test]
     fn resolve_without_scan_errors() {
         let dir = fixture_dir("noscan");
-        assert!(resolve(&dir, "abc").is_err());
+        assert!(resolve(&dir, None, "abc").is_err());
     }
 }

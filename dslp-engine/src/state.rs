@@ -19,15 +19,23 @@ pub struct State {
     pub issues: Vec<Issue>,
 }
 
-pub fn state_path(project_root: &Path) -> std::path::PathBuf {
-    project_root.join(".dslp").join("state.json")
+/// State lives at `.dslp/state.json` by default, or `.dslp/state-<lang>.json`
+/// when scoped to one language plugin — each `--lang` gets its own
+/// independent issue list and score, so a monorepo can track e.g. `go` and
+/// `typescript` health separately from the same `--path`.
+pub fn state_path(project_root: &Path, lang: Option<&str>) -> std::path::PathBuf {
+    let filename = match lang {
+        Some(id) => format!("state-{id}.json"),
+        None => "state.json".to_string(),
+    };
+    project_root.join(".dslp").join(filename)
 }
 
 /// Read state. Returns `Ok(None)` if the file doesn't exist OR if it's an
 /// older schema version (we discard incompatible local cache rather than
 /// migrate — a scan regenerates everything except wontfix marks).
-pub fn load(project_root: &Path) -> anyhow::Result<Option<State>> {
-    let path = state_path(project_root);
+pub fn load(project_root: &Path, lang: Option<&str>) -> anyhow::Result<Option<State>> {
+    let path = state_path(project_root, lang);
     if !path.exists() {
         return Ok(None);
     }
@@ -45,8 +53,8 @@ pub fn load(project_root: &Path) -> anyhow::Result<Option<State>> {
     Ok(Some(state))
 }
 
-pub fn save(project_root: &Path, state: &State) -> anyhow::Result<()> {
-    let path = state_path(project_root);
+pub fn save(project_root: &Path, lang: Option<&str>, state: &State) -> anyhow::Result<()> {
+    let path = state_path(project_root, lang);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -247,10 +255,27 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let s = state_with(merge_issues(None, vec![finding("a.rs", "x")], now()));
-        save(&dir, &s).unwrap();
-        let loaded = load(&dir).unwrap().unwrap();
+        save(&dir, None, &s).unwrap();
+        let loaded = load(&dir, None).unwrap().unwrap();
         assert_eq!(loaded.version, STATE_VERSION);
         assert_eq!(loaded.issues.len(), 1);
+    }
+
+    #[test]
+    fn scoped_lang_state_is_independent_of_default() {
+        let dir = std::env::temp_dir().join(format!("dslp-engine-state-v2-scoped-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let default_state = state_with(merge_issues(None, vec![finding("a.rs", "x")], now()));
+        let go_state = state_with(merge_issues(None, vec![finding("a.go", "y")], now()));
+        save(&dir, None, &default_state).unwrap();
+        save(&dir, Some("go"), &go_state).unwrap();
+
+        let loaded_default = load(&dir, None).unwrap().unwrap();
+        let loaded_go = load(&dir, Some("go")).unwrap().unwrap();
+        assert_eq!(loaded_default.issues[0].file, PathBuf::from("a.rs"));
+        assert_eq!(loaded_go.issues[0].file, PathBuf::from("a.go"));
+        assert!(load(&dir, Some("typescript")).unwrap().is_none());
     }
 
     #[test]
@@ -264,7 +289,7 @@ mod tests {
             r#"{"version":1,"last_scan":"2026-05-01T20:00:00Z","score":{"composite":90.0,"total_loc":100,"finding_count":1,"by_detector":{}},"issues":[]}"#,
         )
         .unwrap();
-        let loaded = load(&dir).unwrap();
+        let loaded = load(&dir, None).unwrap();
         assert!(loaded.is_none(), "v1 state should be discarded, not error");
     }
 }

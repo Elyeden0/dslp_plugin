@@ -17,9 +17,14 @@ pub struct ScanReport {
 
 /// End-to-end scan: discover files, dispatch to plugins, reconcile against
 /// prior state (preserving wontfix), score the reconciled issues, persist.
+///
+/// `lang` scopes the scan to a single plugin's state file
+/// (`.dslp/state-<lang>.json`) instead of the shared `.dslp/state.json` —
+/// `plugins` must already be filtered to just that plugin by the caller.
 pub fn run_scan(
     project_root: &Path,
     plugins: &[Box<dyn LanguagePlugin>],
+    lang: Option<&str>,
 ) -> anyhow::Result<ScanReport> {
     let config = load_config(project_root)?;
     let cfg_value = serde_json::to_value(&config)?;
@@ -46,7 +51,7 @@ pub fn run_scan(
     }
 
     let now = Utc::now();
-    let prev = load(project_root)?;
+    let prev = load(project_root, lang)?;
     let issues = merge_issues(prev.as_ref(), all_findings, now);
     let score = score_issues(&issues, total_loc);
     let state = State {
@@ -55,7 +60,7 @@ pub fn run_scan(
         score,
         issues,
     };
-    save(project_root, &state)?;
+    save(project_root, lang, &state)?;
     Ok(ScanReport {
         state,
         config,
