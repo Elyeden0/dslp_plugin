@@ -67,6 +67,17 @@ enum Command {
         #[arg(long, default_value_t = false)]
         json: bool,
     },
+    /// Emit a shields.io endpoint-badge payload for the score (strict by default — see Scoring)
+    Badge {
+        #[arg(long, default_value = ".")]
+        path: PathBuf,
+        /// Badge label text
+        #[arg(long, default_value = "dslp")]
+        label: String,
+        /// Use the lenient score instead of strict (strict is the anti-gaming default)
+        #[arg(long, default_value_t = false)]
+        lenient: bool,
+    },
     /// Mark an issue fixed (optimistic — a later scan reopens it if it's still there)
     Resolve {
         /// Issue fingerprint (a unique prefix is enough)
@@ -112,6 +123,7 @@ fn main() -> ExitCode {
         Command::Findings { path, json, limit } => cmd_findings(&path, json, limit),
         Command::Plan { path, json, limit } => cmd_plan(&path, json, limit),
         Command::Backlog { path, json } => cmd_backlog(&path, json),
+        Command::Badge { path, label, lenient } => cmd_badge(&path, &label, lenient),
         Command::Resolve { fingerprint, path, json } => cmd_resolve(&path, &fingerprint, json),
         Command::Suppress { fingerprint, reason, path, json } => {
             cmd_suppress(&path, &fingerprint, &reason, json)
@@ -279,6 +291,17 @@ fn cmd_backlog(path: &Path, json: bool) -> anyhow::Result<ExitCode> {
         println!();
         println!("{} wontfix issue(s).", issues.len());
     }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_badge(path: &Path, label: &str, lenient: bool) -> anyhow::Result<ExitCode> {
+    let Some(state) = dslp_engine::load(path)? else {
+        println!("{}", serde_json::to_string_pretty(&dslp_engine::Badge::no_scan(label))?);
+        return Ok(ExitCode::from(1));
+    };
+    let score = if lenient { state.score.lenient } else { state.score.strict };
+    let badge = dslp_engine::Badge::from_score(score, label);
+    println!("{}", serde_json::to_string_pretty(&badge)?);
     Ok(ExitCode::SUCCESS)
 }
 
