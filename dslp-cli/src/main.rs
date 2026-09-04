@@ -50,6 +50,23 @@ enum Command {
         #[arg(long)]
         limit: Option<usize>,
     },
+    /// Group open issues by file, ranked by total severity penalty — a batch triage plan
+    Plan {
+        #[arg(long, default_value = ".")]
+        path: PathBuf,
+        #[arg(long, default_value_t = false)]
+        json: bool,
+        /// Cap the number of files shown (default: all)
+        #[arg(long)]
+        limit: Option<usize>,
+    },
+    /// List wontfix (suppressed) issues — the standing-decision backlog
+    Backlog {
+        #[arg(long, default_value = ".")]
+        path: PathBuf,
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
     /// Mark an issue fixed (optimistic — a later scan reopens it if it's still there)
     Resolve {
         /// Issue fingerprint (a unique prefix is enough)
@@ -93,6 +110,8 @@ fn main() -> ExitCode {
         Command::Next { path, json } => cmd_next(&path, json),
         Command::Score { path, json } => cmd_score(&path, json),
         Command::Findings { path, json, limit } => cmd_findings(&path, json, limit),
+        Command::Plan { path, json, limit } => cmd_plan(&path, json, limit),
+        Command::Backlog { path, json } => cmd_backlog(&path, json),
         Command::Resolve { fingerprint, path, json } => cmd_resolve(&path, &fingerprint, json),
         Command::Suppress { fingerprint, reason, path, json } => {
             cmd_suppress(&path, &fingerprint, &reason, json)
@@ -203,6 +222,66 @@ fn cmd_findings(path: &Path, json: bool, limit: Option<usize>) -> anyhow::Result
     Ok(ExitCode::SUCCESS)
 }
 
+fn cmd_plan(path: &Path, json: bool, limit: Option<usize>) -> anyhow::Result<ExitCode> {
+    let Some(state) = dslp_engine::load(path)? else {
+        return no_scan(path, json);
+    };
+    let entries = dslp_engine::plan(&state);
+    let view: Vec<_> = match limit {
+        Some(n) => entries.into_iter().take(n).collect(),
+        None => entries,
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&view)?);
+    } else if view.is_empty() {
+        println!("No open issues. Lenient {:.1} / Strict {:.1}", state.score.lenient, state.score.strict);
+    } else {
+        for entry in &view {
+            println!(
+                "[{} pts] {}  ({} issue(s), highest: {})",
+                entry.penalty,
+                entry.file.display(),
+                entry.issue_count,
+                severity_label(entry.highest_severity),
+            );
+        }
+        println!();
+        println!("{} file(s) with open issues.", view.len());
+        print_score_line(&state.score);
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_backlog(path: &Path, json: bool) -> anyhow::Result<ExitCode> {
+    let Some(state) = dslp_engine::load(path)? else {
+        return no_scan(path, json);
+    };
+    let issues = dslp_engine::backlog(&state);
+    if json {
+        println!("{}", serde_json::to_string_pretty(&issues)?);
+    } else if issues.is_empty() {
+        println!("No wontfix issues.");
+    } else {
+        for issue in &issues {
+            let reason = match &issue.status {
+                dslp_core::Status::Wontfix { reason, .. } => reason.as_str(),
+                _ => unreachable!("backlog only contains Wontfix issues"),
+            };
+            println!(
+                "[{}] {}  {}  ({})  — {}",
+                severity_label(issue.severity),
+                issue.detector,
+                issue.file.display(),
+                short_fp(&issue.fingerprint),
+                reason,
+            );
+        }
+        println!();
+        println!("{} wontfix issue(s).", issues.len());
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
 fn cmd_resolve(path: &Path, fingerprint: &str, json: bool) -> anyhow::Result<ExitCode> {
     let res = dslp_engine::resolve(path, fingerprint)?;
     if json {
@@ -264,7 +343,7 @@ fn print_issue_line(issue: &Issue) {
     let line = issue.span.map(|s| s.start.line).unwrap_or(0);
     println!(
         "[{}] {}  {}:{}  ({})",
-        severity_label(issue),
+        severity_label(issue.severity),
         issue.detector,
         issue.file.display(),
         line,
@@ -288,9 +367,9 @@ fn short_fp(fp: &str) -> &str {
     &fp[..fp.len().min(8)]
 }
 
-fn severity_label(i: &Issue) -> &'static str {
+fn severity_label(s: dslp_core::Severity) -> &'static str {
     use dslp_core::Severity::*;
-    match i.severity {
+    match s {
         Low => "low",
         Medium => "medium",
         High => "high",
