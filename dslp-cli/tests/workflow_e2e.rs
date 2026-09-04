@@ -127,6 +127,86 @@ fn wontfix_survives_rescan() {
 }
 
 #[test]
+fn plan_groups_open_issues_by_file() {
+    let project = rust_fixture("wf-plan");
+    scan(&project);
+    let out = Command::new(dslp_bin())
+        .args(["plan", "--json", "--path"])
+        .arg(&project)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "plan failed: {:?}", out);
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let entries = v.as_array().unwrap();
+    assert!(!entries.is_empty(), "expected at least one file with open issues");
+    // Ranked by penalty descending.
+    let penalties: Vec<u64> = entries.iter().map(|e| e["penalty"].as_u64().unwrap()).collect();
+    let mut sorted = penalties.clone();
+    sorted.sort_by(|a, b| b.cmp(a));
+    assert_eq!(penalties, sorted, "plan entries must be ranked by penalty descending");
+}
+
+#[test]
+fn plan_respects_limit() {
+    let project = rust_fixture("wf-plan-limit");
+    scan(&project);
+    let out = Command::new(dslp_bin())
+        .args(["plan", "--json", "--limit", "1", "--path"])
+        .arg(&project)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v.as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn backlog_lists_suppressed_issues() {
+    let project = rust_fixture("wf-backlog");
+    suppress_first(&project);
+
+    let out = Command::new(dslp_bin())
+        .args(["backlog", "--json", "--path"])
+        .arg(&project)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "backlog failed: {:?}", out);
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let issues = v.as_array().unwrap();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0]["status"]["kind"], "wontfix");
+
+    // The suppressed fingerprint must not appear in the open queue.
+    let findings_out = Command::new(dslp_bin())
+        .args(["findings", "--json", "--path"])
+        .arg(&project)
+        .output()
+        .unwrap();
+    let findings_v: serde_json::Value = serde_json::from_slice(&findings_out.stdout).unwrap();
+    let open_fps: Vec<&str> = findings_v
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|i| i["fingerprint"].as_str())
+        .collect();
+    assert!(!open_fps.contains(&issues[0]["fingerprint"].as_str().unwrap()));
+}
+
+#[test]
+fn backlog_empty_before_any_suppress() {
+    let project = rust_fixture("wf-backlog-empty");
+    scan(&project);
+    let out = Command::new(dslp_bin())
+        .args(["backlog", "--json", "--path"])
+        .arg(&project)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert!(v.as_array().unwrap().is_empty());
+}
+
+#[test]
 fn unknown_fingerprint_errors() {
     let project = rust_fixture("wf-unknown");
     scan(&project);
