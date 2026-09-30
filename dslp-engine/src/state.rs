@@ -10,6 +10,10 @@ use dslp_core::{Finding, Issue, Score};
 /// became `Issue.status: Status`. Older state is discarded on load.
 pub const STATE_VERSION: u32 = 2;
 
+/// Resolved issues that stay undetected this long are dropped from state, so
+/// it doesn't grow without bound. A later re-detection is then a new issue.
+const RESOLVED_RETENTION_DAYS: i64 = 90;
+
 /// On-disk state for a single project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct State {
@@ -75,6 +79,8 @@ pub fn save(project_root: &Path, lang: Option<&str>, state: &State) -> anyhow::R
 /// | Resolved   | yes         | Open (regression) |
 /// | Wontfix    | yes         | Wontfix (kept)    |
 /// | any        | no          | Resolved          |
+///
+/// Resolved issues untouched for `RESOLVED_RETENTION_DAYS` are dropped.
 pub fn merge_issues(
     previous: Option<&State>,
     findings: Vec<Finding>,
@@ -112,7 +118,11 @@ pub fn merge_issues(
         }
     }
 
-    let mut issues: Vec<Issue> = by_fp.into_values().collect();
+    let cutoff = now - chrono::Duration::days(RESOLVED_RETENTION_DAYS);
+    let mut issues: Vec<Issue> = by_fp
+        .into_values()
+        .filter(|i| !(i.status.is_resolved() && i.last_seen < cutoff))
+        .collect();
     issues.sort_by(|a, b| a.fingerprint.cmp(&b.fingerprint));
     issues
 }
@@ -195,6 +205,15 @@ mod tests {
         assert!(issues[0].is_open());
         assert_eq!(issues[0].first_seen, now());
         assert_eq!(issues[0].last_seen, later());
+    }
+
+    #[test]
+    fn stale_resolved_issues_are_pruned() {
+        let mut s = state_with(merge_issues(None, vec![finding("a.rs", "x")], now()));
+        s.issues[0].resolve();
+        let much_later = now() + chrono::Duration::days(RESOLVED_RETENTION_DAYS + 1);
+        assert!(merge_issues(Some(&s), vec![], later()).len() == 1);
+        assert!(merge_issues(Some(&s), vec![], much_later).is_empty());
     }
 
     #[test]
