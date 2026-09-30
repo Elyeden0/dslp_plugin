@@ -153,7 +153,7 @@ Details, thresholds and exact rules are below; click a language to expand.
 | Detector | What it flags |
 |---|---|
 | `rust.file-size` | Files over 400 lines (configurable). Severity bumps to High at 600. |
-| `rust.complexity` | Functions with cyclomatic complexity ≥ 10 (counts `if`, `match` arms, loops, `?`, `&&`, `\|\|`). |
+| `rust.complexity` | Functions with cyclomatic complexity ≥ 10. Counts `if`, loops, `?`, `&&`, `\|\|` and `match` arms (a `match` with n arms adds n − 1). Nested named `fn`s are scored on their own, not added to the parent. |
 | `rust.length` | Functions ≥ 50 lines. Low severity. |
 | `rust.params` | Functions with ≥ 6 parameters (the `self` receiver is free). Low severity. |
 | `rust.nesting` | Functions nesting `if` / `match` / loops 5+ levels deep (`else if` chains do not add depth). Low severity. |
@@ -203,7 +203,7 @@ Details, thresholds and exact rules are below; click a language to expand.
 | Detector | What it flags |
 |---|---|
 | `python.file-size` | Files over the threshold. |
-| `python.complexity` | Functions / methods (including nested defs) with cyclomatic complexity ≥ 10. Counts `if`, `elif`, `for`, `while`, `except`, `match` `case`, conditional expressions (`x if c else y`), plus `and` / `or`. |
+| `python.complexity` | Functions / methods (nested defs are scored on their own) with cyclomatic complexity ≥ 10. Counts `if`, `elif`, `for`, `while`, `except`, `match` `case` (a `match` with n cases adds n − 1), conditional expressions (`x if c else y`), plus `and` / `or`. |
 | `python.length` | Functions ≥ 50 lines. Low severity. |
 | `python.params` | Functions with ≥ 6 parameters (`self`/`cls` are free). Low severity. |
 | `python.nesting` | Functions nesting `if` / `try` / `with` / `match` / loops 5+ levels deep (`elif` chains do not add depth). Low severity. |
@@ -390,13 +390,12 @@ Cargo workspace:
 
 ## Status and roadmap
 
-All six languages, the three framework plugins, the workflow loop (resolve / suppress / reopen / inline ignores), CI gating and the slop detectors are implemented. What's next, roughly in order:
+All six languages, the three framework plugins, the workflow loop (resolve / suppress / reopen / inline ignores), CI gating and the slop detectors are implemented. What's next, roughly in order (closures still count toward their parent function's complexity, on purpose):
 
-1. **Decide how complexity is counted** — Rust `match` arms count +1 each (the textbook rule is arms − 1), and closures count toward their parent. Changing either moves existing scores, so it needs a deliberate call.
-2. **Faster partial scans** — `--since` only limits what is *reported*; the whole project is still analysed so cross-file detectors stay correct. Real speed-ups need per-detector "needs the whole corpus" metadata.
-3. **Smarter duplicate detection** — `dup.block` compares normalised lines, so clones with renamed variables slip through; a token-based pass would catch them.
-4. **More slop coverage** — leftover-debug and density checks for Go, C and C++ (printing is legitimate there, so it needs a policy).
-5. **LLM-backed subjective review and autofix** — deliberately deferred.
+1. **Faster partial scans** — `--since` only limits what is *reported*; the whole project is still analysed so cross-file detectors stay correct. Real speed-ups need per-detector "needs the whole corpus" metadata.
+2. **Smarter duplicate detection** — `dup.block` compares normalised lines, so clones with renamed variables slip through; a token-based pass would catch them.
+3. **More slop coverage** — leftover-debug and density checks for Go, C and C++ (printing is legitimate there, so it needs a policy).
+4. **LLM-backed subjective review and autofix** — deliberately deferred.
 
 <details>
 <summary>Version history</summary>

@@ -6,8 +6,8 @@ use std::path::Path;
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
 use dslp_lang_common::{
-    cyclomatic_excluding, finding_at_node, max_nesting, nesting_finding, node_length_lines,
-    param_count, params_finding,
+    cyclomatic_with, finding_at_node, max_nesting, nesting_finding, node_length_lines, param_count,
+    params_finding,
 };
 use tree_sitter::{Node, Tree};
 
@@ -26,6 +26,8 @@ const DECISION_KINDS: &[&str] = &[
     "or",
 ];
 
+/// A `match` counts its arms as decisions and takes one back, so n arms add n - 1.
+const DISCOUNT_KINDS: &[&str] = &["match_statement"];
 /// Nested named functions get their own findings; skip them in the parent.
 const NESTED_FN_KINDS: &[&str] = &["function_definition"];
 /// Control-flow nodes that add a nesting level.
@@ -45,7 +47,7 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
     let bytes = source.as_bytes();
     walk_functions(tree.root_node(), bytes, &mut |fn_node, name| {
         let body = fn_node.child_by_field_name("body").unwrap_or(fn_node);
-        let cx = cyclomatic_excluding(body, DECISION_KINDS, NESTED_FN_KINDS);
+        let cx = cyclomatic_with(body, DECISION_KINDS, NESTED_FN_KINDS, DISCOUNT_KINDS);
         let length = node_length_lines(fn_node);
 
         if cx >= cfg.cyclomatic_threshold {
@@ -282,5 +284,18 @@ def outer():
             .collect();
         assert_eq!(flagged.len(), 1, "only inner should fire: {:?}", flagged);
         assert!(flagged[0].message.contains("`inner`"));
+    }
+
+    #[test]
+    fn match_adds_cases_minus_one() {
+        let has = |src: &str| {
+            run(Path::new("a.py"), src, &parse(src), &cfg())
+                .iter()
+                .any(|f| f.detector == "python.complexity")
+        };
+        let three = "def f(x):\n    match x:\n        case 0: return 1\n        case 1: return 2\n        case _: return 3\n";
+        let four = "def f(x):\n    match x:\n        case 0: return 1\n        case 1: return 2\n        case 2: return 3\n        case _: return 4\n";
+        assert!(!has(three));
+        assert!(has(four));
     }
 }

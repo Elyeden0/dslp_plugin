@@ -3,8 +3,8 @@ use std::path::Path;
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
 use dslp_lang_common::{
-    cyclomatic_excluding, finding_at_node, max_nesting, nesting_finding, node_length_lines,
-    param_count, params_finding,
+    cyclomatic_with, finding_at_node, max_nesting, nesting_finding, node_length_lines, param_count,
+    params_finding,
 };
 use tree_sitter::{Node, Tree};
 
@@ -22,6 +22,8 @@ const DECISION_KINDS: &[&str] = &[
 
 /// Per-function cyclomatic complexity + length. The walk and name extraction
 /// are Rust-specific; the counting/length/finding machinery is shared.
+/// A `match` counts its arms as decisions and takes one back, so n arms add n - 1.
+const DISCOUNT_KINDS: &[&str] = &["match_expression"];
 /// Nested named functions get their own findings; skip them in the parent.
 const NESTED_FN_KINDS: &[&str] = &["function_item"];
 /// Control-flow nodes that add a nesting level.
@@ -40,7 +42,7 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
     let bytes = source.as_bytes();
     walk_functions(tree.root_node(), bytes, &mut |fn_node, name| {
         let body = fn_node.child_by_field_name("body").unwrap_or(fn_node);
-        let cx = cyclomatic_excluding(body, DECISION_KINDS, NESTED_FN_KINDS);
+        let cx = cyclomatic_with(body, DECISION_KINDS, NESTED_FN_KINDS, DISCOUNT_KINDS);
         let length = node_length_lines(fn_node);
 
         if cx >= cfg.cyclomatic_threshold {
@@ -224,5 +226,21 @@ fn tangle(x: i32) -> i32 {
             .collect();
         assert_eq!(flagged.len(), 1, "only inner should fire: {:?}", flagged);
         assert!(flagged[0].message.contains("`inner`"));
+    }
+
+    #[test]
+    fn match_adds_arms_minus_one() {
+        let has = |src: &str| {
+            run(Path::new("a.rs"), src, &parse(src), &cfg())
+                .iter()
+                .any(|f| f.detector == "rust.complexity")
+        };
+        // threshold is 4: 1 + (3 arms - 1) = 3 stays quiet, 1 + (4 arms - 1) = 4 fires.
+        assert!(!has(
+            "fn f(x: i32) -> i32 { match x { 0 => 1, 1 => 2, _ => 3 } }"
+        ));
+        assert!(has(
+            "fn f(x: i32) -> i32 { match x { 0 => 1, 1 => 2, 2 => 3, _ => 4 } }"
+        ));
     }
 }

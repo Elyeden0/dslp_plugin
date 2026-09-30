@@ -56,19 +56,41 @@ pub fn cyclomatic(node: Node, decision_kinds: &[&str]) -> u32 {
 /// `skip_kinds` (nested named functions, which are scored on their own and
 /// shouldn't also inflate the enclosing function).
 pub fn cyclomatic_excluding(node: Node, decision_kinds: &[&str], skip_kinds: &[&str]) -> u32 {
-    let mut score: u32 = 1;
-    recur(node, decision_kinds, skip_kinds, &mut score);
-    score
+    cyclomatic_with(node, decision_kinds, skip_kinds, &[])
 }
 
-fn recur(node: Node, decision_kinds: &[&str], skip_kinds: &[&str], score: &mut u32) {
+/// Like [`cyclomatic_excluding`], but each node whose kind is in
+/// `discount_kinds` takes one point back. For `match`: every arm counts as a
+/// decision, and the `match` itself is discounted, so n arms add n − 1 paths.
+/// Never returns less than 1.
+pub fn cyclomatic_with(
+    node: Node,
+    decision_kinds: &[&str],
+    skip_kinds: &[&str],
+    discount_kinds: &[&str],
+) -> u32 {
+    let mut score: i64 = 1;
+    recur(node, decision_kinds, skip_kinds, discount_kinds, &mut score);
+    score.max(1) as u32
+}
+
+fn recur(
+    node: Node,
+    decision_kinds: &[&str],
+    skip_kinds: &[&str],
+    discount_kinds: &[&str],
+    score: &mut i64,
+) {
     if decision_kinds.contains(&node.kind()) {
         *score += 1;
+    }
+    if discount_kinds.contains(&node.kind()) {
+        *score -= 1;
     }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if !skip_kinds.contains(&child.kind()) {
-            recur(child, decision_kinds, skip_kinds, score);
+            recur(child, decision_kinds, skip_kinds, discount_kinds, score);
         }
     }
 }
