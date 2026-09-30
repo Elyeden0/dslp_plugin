@@ -16,7 +16,7 @@ Design docs: [rust-port design](docs/superpowers/specs/2026-05-01-rust-port-desi
 Requires a Rust toolchain (`rust-version = 1.78` in `Cargo.toml`).
 
 ```bash
-git clone <this-repo> noAIslop
+git clone https://github.com/Elyeden0/rust_noAIslop.git noAIslop
 cd noAIslop
 cargo install --path dslp-cli
 ```
@@ -366,4 +366,4 @@ cargo test --workspace
 
 ## License
 
-Declared as MIT OR Apache-2.0 in `Cargo.toml`; the license files themselves are still to be added.
+Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.
