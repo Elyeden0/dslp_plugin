@@ -139,10 +139,12 @@ pub fn cmd_init(path: &Path) -> anyhow::Result<ExitCode> {
 
     let gitignore = path.join(".gitignore");
     let existing = std::fs::read_to_string(&gitignore).unwrap_or_default();
-    if existing
-        .lines()
-        .any(|l| matches!(l.trim(), ".dslp" | ".dslp/" | "/.dslp" | "/.dslp/"))
-    {
+    if existing.lines().any(|l| {
+        matches!(
+            l.trim(),
+            ".dslp" | ".dslp/" | "/.dslp" | "/.dslp/" | ".dslp/state*"
+        )
+    }) {
         return Ok(ExitCode::SUCCESS);
     }
     let sep = if existing.is_empty() || existing.ends_with('\n') {
@@ -150,8 +152,8 @@ pub fn cmd_init(path: &Path) -> anyhow::Result<ExitCode> {
     } else {
         "\n"
     };
-    std::fs::write(&gitignore, format!("{existing}{sep}.dslp/\n"))?;
-    println!("Added .dslp/ to {}", gitignore.display());
+    std::fs::write(&gitignore, format!("{existing}{sep}.dslp/state*\n"))?;
+    println!("Added .dslp/state* to {}", gitignore.display());
     Ok(ExitCode::SUCCESS)
 }
 

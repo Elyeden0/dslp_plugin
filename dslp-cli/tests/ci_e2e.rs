@@ -89,12 +89,36 @@ fn init_writes_config_and_gitignore_once() {
     assert!(dir.join(".dslp/config.toml").exists());
     assert_eq!(
         std::fs::read_to_string(dir.join(".gitignore")).unwrap(),
-        "target\n.dslp/\n"
+        "target\n.dslp/state*\n"
     );
     // The generated config must load, and init must not clobber it.
     std::fs::write(dir.join("a.rs"), "fn main() {}\n").unwrap();
     assert!(run(&["scan"], &dir).status.success());
     assert_eq!(run(&["init"], &dir).status.code(), Some(2));
+}
+
+#[test]
+fn init_ignores_state_but_leaves_the_config_committable() {
+    let dir = fresh_dir("wf-init-git");
+    git(&dir, &["init", "-q"]);
+    assert!(run(&["init"], &dir).status.success());
+    run(&["scan"], &dir);
+    let ignored = |p: &str| {
+        Command::new("git")
+            .arg("-C")
+            .arg(&dir)
+            .args(["check-ignore", "-q", p])
+            .status()
+            .unwrap()
+            .success()
+    };
+    assert!(ignored(".dslp/state.json"));
+    assert!(ignored(".dslp/state-go.json"));
+    assert!(ignored(".dslp/state.json.tmp"));
+    assert!(
+        !ignored(".dslp/config.toml"),
+        "the team's config must stay shareable"
+    );
 }
 
 #[test]
