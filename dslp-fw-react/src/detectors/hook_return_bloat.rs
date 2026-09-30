@@ -49,7 +49,7 @@ pub fn run(path: &Path, source: &str, tree: &Tree) -> Vec<Finding> {
                  rest internal."
                     .into(),
             ),
-            &format!("hook-return-bloat:{}:{}", name, field_count),
+            &format!("hook-return-bloat:{}", name),
         ));
     });
     out

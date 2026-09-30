@@ -67,7 +67,7 @@ fn complexity_finding(
         ),
         "Pull deep `if`/`switch` chains into named helpers; consider replacing \
          a long branchy method with `std::variant` + `std::visit`.",
-        &format!("cpp.complexity:{}:{}", name, cx),
+        &format!("cpp.complexity:{}", name),
     )
 }
 
@@ -90,7 +90,7 @@ fn length_finding(
         ),
         "Identify the most independent block and extract it. RAII guards often \
          let you collapse setup/teardown into a single declaration.",
-        &format!("cpp.length:{}:{}", name, length),
+        &format!("cpp.length:{}", name),
     )
 }
 

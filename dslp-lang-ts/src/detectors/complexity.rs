@@ -49,7 +49,7 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
                 ),
                 "Pull out an early-return guard, or extract the deepest branch into \
                  its own function.",
-                &format!("ts.complexity:{}:{}", name, cx),
+                &format!("ts.complexity:{}", name),
             ));
         }
         if length >= cfg.length_threshold {
@@ -65,7 +65,7 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
                 ),
                 "Identify the most independent block (often setup or post-processing) \
                  and extract it.",
-                &format!("ts.length:{}:{}", name, length),
+                &format!("ts.length:{}", name),
             ));
         }
     });

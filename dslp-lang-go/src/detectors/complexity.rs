@@ -43,7 +43,7 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
                 ),
                 "Replace deep `if`/`switch` chains with table-driven dispatch \
                  or extract early-return helpers.",
-                &format!("go.complexity:{}:{}", name, cx),
+                &format!("go.complexity:{}", name),
             ));
         }
         if length >= cfg.length_threshold {
@@ -59,7 +59,7 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
                 ),
                 "Identify the most independent block (often setup or post-processing) \
                  and extract it into a helper.",
-                &format!("go.length:{}:{}", name, length),
+                &format!("go.length:{}", name),
             ));
         }
     });

@@ -22,9 +22,10 @@ pub struct Finding {
 impl Finding {
     /// Construct a Finding, computing its fingerprint deterministically.
     ///
-    /// The fingerprint is `blake3(detector || "\0" || file || "\0" || start_line || "\0" || snippet)`.
-    /// `snippet` lets us distinguish multiple findings on the same line, but
-    /// renders us mildly fragile to reformatting — accepted v0.1 tradeoff.
+    /// The fingerprint is `blake3(detector || "\0" || file || "\0" || snippet)`.
+    /// It deliberately excludes the line number and any measured value, so an
+    /// issue keeps its identity when code above it moves or its metric drifts.
+    /// `snippet` should name the item (function, file, ...) being flagged.
     pub fn new(
         detector: impl Into<String>,
         severity: Severity,
@@ -36,7 +37,7 @@ impl Finding {
     ) -> Self {
         let detector = detector.into();
         let message = message.into();
-        let fingerprint = compute_fingerprint(&detector, &file, span, snippet);
+        let fingerprint = compute_fingerprint(&detector, &file, snippet);
         Self {
             detector,
             severity,
@@ -49,14 +50,26 @@ impl Finding {
     }
 }
 
-fn compute_fingerprint(detector: &str, file: &Path, span: Option<Span>, snippet: &str) -> String {
-    let line = span.map(|s| s.start.line).unwrap_or(0);
+impl Finding {
+    /// Disambiguate the n-th (n >= 1) finding that shares a fingerprint with
+    /// an earlier one in the same scan, e.g. two functions with the same name.
+    pub fn with_occurrence(mut self, n: usize) -> Self {
+        if n > 0 {
+            let mut hasher = blake3::Hasher::new();
+            hasher.update(self.fingerprint.as_bytes());
+            hasher.update(b"#");
+            hasher.update(n.to_string().as_bytes());
+            self.fingerprint = hex::encode_short(hasher.finalize().as_bytes());
+        }
+        self
+    }
+}
+
+fn compute_fingerprint(detector: &str, file: &Path, snippet: &str) -> String {
     let mut hasher = blake3::Hasher::new();
     hasher.update(detector.as_bytes());
     hasher.update(b"\0");
     hasher.update(file.to_string_lossy().as_bytes());
-    hasher.update(b"\0");
-    hasher.update(line.to_string().as_bytes());
     hasher.update(b"\0");
     hasher.update(snippet.as_bytes());
     hex::encode_short(hasher.finalize().as_bytes())
@@ -123,6 +136,29 @@ mod tests {
             "src/bar.rs",
         );
         assert_ne!(a.fingerprint, b.fingerprint);
+    }
+
+    #[test]
+    fn fingerprint_ignores_line_number() {
+        let a = fixture_finding();
+        let b = Finding::new(
+            "rust.file-size",
+            Severity::Medium,
+            PathBuf::from("src/foo.rs"),
+            Some(Span::single_line(40, 0, 0)),
+            "File too long",
+            Some("Split it up".into()),
+            "src/foo.rs",
+        );
+        assert_eq!(a.fingerprint, b.fingerprint);
+    }
+
+    #[test]
+    fn with_occurrence_changes_fingerprint() {
+        let a = fixture_finding();
+        let b = a.clone().with_occurrence(1);
+        assert_ne!(a.fingerprint, b.fingerprint);
+        assert_eq!(a.clone().with_occurrence(0).fingerprint, a.fingerprint);
     }
 
     #[test]

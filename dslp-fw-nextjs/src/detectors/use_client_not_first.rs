@@ -66,7 +66,7 @@ fn make_finding(path: &Path, lines: &[&str], directive_idx: usize) -> Finding {
              the directive."
                 .into(),
         ),
-        &format!("use-client-not-first:{}", line_no),
+        "use-client-not-first",
     )
 }
 

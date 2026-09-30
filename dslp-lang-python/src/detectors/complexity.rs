@@ -44,7 +44,7 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
                 ),
                 "Replace deep `if`/`elif` chains with a dispatch dict or a `match` \
                  statement; pull out the deepest branch into its own function.",
-                &format!("python.complexity:{}:{}", name, cx),
+                &format!("python.complexity:{}", name),
             ));
         }
         if length >= cfg.length_threshold {
@@ -60,7 +60,7 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
                 ),
                 "Identify the most independent block (often setup or post-processing) \
                  and extract it into a helper.",
-                &format!("python.length:{}:{}", name, length),
+                &format!("python.length:{}", name),
             ));
         }
     });

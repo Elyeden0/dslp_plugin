@@ -68,7 +68,7 @@ fn complexity_finding(
         ),
         "Replace deep `if`/`switch` chains with table dispatch, or extract \
          early-return helpers.",
-        &format!("c.complexity:{}:{}", name, cx),
+        &format!("c.complexity:{}", name),
     )
 }
 
@@ -91,7 +91,7 @@ fn length_finding(
         ),
         "Identify the most independent block (often setup or post-processing) \
          and extract it.",
-        &format!("c.length:{}:{}", name, length),
+        &format!("c.length:{}", name),
     )
 }
 

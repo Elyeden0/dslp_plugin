@@ -40,7 +40,7 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
                 ),
                 "Extract a sub-routine for the deepest branch, or replace a chain \
                  of `if`s with a `match` over an enum.",
-                &format!("complexity:{}:{}", name, cx),
+                &format!("complexity:{}", name),
             ));
         }
         if length >= cfg.length_threshold {
@@ -56,7 +56,7 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
                 ),
                 "Identify the most independent block (often setup or post-processing) \
                  and extract it.",
-                &format!("length:{}:{}", name, length),
+                &format!("length:{}", name),
             ));
         }
     });

@@ -121,7 +121,7 @@ pub fn file_size(
         span,
         message,
         Some(text.fix_hint.to_string()),
-        &format!("file_size:{}", n),
+        "file_size",
     )]
 }
 
