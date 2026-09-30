@@ -58,7 +58,10 @@ pub fn save(project_root: &Path, lang: Option<&str>, state: &State) -> anyhow::R
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(&path, serde_json::to_string_pretty(state)?)?;
+    // Write-then-rename so a crash mid-write can't leave a truncated state file.
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, serde_json::to_string_pretty(state)?)?;
+    std::fs::rename(&tmp, &path)?;
     Ok(())
 }
 
