@@ -198,3 +198,20 @@ fn per_language_thresholds_override_globals_and_typos_are_rejected() {
     assert_eq!(out.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&out.stderr).contains("rsut"));
 }
+
+#[test]
+fn findings_can_be_emitted_as_sarif() {
+    let dir = fresh_dir("ci-sarif");
+    std::fs::write(dir.join("a.rs"), complex_rs("helper")).unwrap();
+    run(&["scan"], &dir);
+    let out = run(&["findings", "--sarif"], &dir);
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["version"], "2.1.0");
+    assert_eq!(v["runs"][0]["results"][0]["ruleId"], "rust.complexity");
+    assert!(
+        !run(&["findings", "--sarif", "--json"], &dir)
+            .status
+            .success(),
+        "flags conflict"
+    );
+}

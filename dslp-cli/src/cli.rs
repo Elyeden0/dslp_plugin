@@ -126,6 +126,9 @@ pub enum QueryCommand {
         target: Target,
         #[arg(long, default_value_t = false)]
         json: bool,
+        /// Emit SARIF 2.1.0 (for GitHub code scanning and other SARIF tools)
+        #[arg(long, default_value_t = false, conflicts_with = "json")]
+        sarif: bool,
         /// Cap the number of issues shown (default: all)
         #[arg(long)]
         limit: Option<usize>,

@@ -195,18 +195,24 @@ pub fn cmd_score(path: &Path, json: bool, lang: Option<&str>) -> anyhow::Result<
 pub fn cmd_findings(
     path: &Path,
     json: bool,
+    sarif: bool,
     limit: Option<usize>,
     lang: Option<&str>,
 ) -> anyhow::Result<ExitCode> {
     let Some(state) = dslp_engine::load(path, lang)? else {
-        return no_scan(path, lang, json);
+        return no_scan(path, lang, json || sarif);
     };
     let issues = dslp_engine::queue(&state);
     let view: Vec<&Issue> = match limit {
         Some(n) => issues.into_iter().take(n).collect(),
         None => issues,
     };
-    if json {
+    if sarif {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&dslp_engine::sarif(&view))?
+        );
+    } else if json {
         println!("{}", serde_json::to_string_pretty(&view)?);
     } else if view.is_empty() {
         println!(

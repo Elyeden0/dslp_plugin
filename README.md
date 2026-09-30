@@ -35,6 +35,7 @@ dslp score --path /path/to/project
 # List all open issues in priority order
 dslp findings --path /path/to/project
 dslp findings --limit 10 --path /path/to/project
+dslp findings --sarif --path /path/to/project > dslp.sarif   # GitHub code scanning etc.
 
 # Batch triage: open issues grouped by file, ranked by total severity penalty
 dslp plan --path /path/to/project

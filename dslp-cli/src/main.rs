@@ -83,8 +83,9 @@ fn dispatch_query(command: QueryCommand) -> anyhow::Result<ExitCode> {
         QueryCommand::Findings {
             target,
             json,
+            sarif,
             limit,
-        } => cmd_findings(&target.path(), json, limit, target.lang()),
+        } => cmd_findings(&target.path(), json, sarif, limit, target.lang()),
         QueryCommand::Plan {
             target,
             json,
