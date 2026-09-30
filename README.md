@@ -44,6 +44,8 @@ dslp badge --path /path/to/project > badge.json
 # Work the queue: mark an issue fixed, or dismiss it
 dslp resolve <fingerprint> --path /path/to/project
 dslp suppress <fingerprint> --reason "intentional here" --path /path/to/project
+# Undo either: put an issue back in the queue
+dslp reopen <fingerprint> --path /path/to/project
 
 # Monorepo: score one language independently of the others under the same --path
 dslp scan --lang go --path /path/to/monorepo
@@ -162,7 +164,7 @@ length_threshold = 50
 ignore_paths = ["src/lib.rs"]
 ```
 
-Every key is optional; missing values fall back to defaults.
+Every key is optional; missing values fall back to defaults. Unknown keys are an error, so a typo like `treshold` is reported rather than silently ignored. `exclude` entries are path prefixes matched per path component (`"vendor"` and `"vendor/"` exclude `vendor/x.rs` but not `vendor2/x.rs`).
 
 ## Scoring
 
@@ -188,7 +190,7 @@ Each issue has a status:
 - **Resolved** — `dslp resolve` marks it optimistically fixed. It's removed from the queue, but a later `scan` that re-detects the fingerprint **reopens it as a regression** — `resolve` is a claim the next scan verifies.
 - **Wontfix** — `dslp suppress --reason` dismisses it as a standing decision. It survives rescans, stays out of the queue, but still counts toward `strict`. `dslp backlog` is the dedicated view onto these — `findings`/`plan` show Open issues only.
 
-State persists in `.dslp/state.json` (schema v2). Old v1 state is discarded on load.
+State persists in `.dslp/state.json` (schema v2). Old v1 state is discarded on load. Issue fingerprints are built from the detector, the project-relative file path, and the flagged item's name — not the line number or measured value — so an issue keeps its identity (and a `suppress` keeps applying) when you edit code above it. Resolved issues that stay gone for 90 days are pruned from state. `dslp reopen` reverses `resolve` and `suppress`.
 
 `dslp next`/`findings` rank individual issues; `dslp plan` ranks *files* — open issues grouped by file, sorted by the sum of their severity weights, so an agent can fix a whole file's worth of issues in one pass instead of working the flat queue one at a time.
 
@@ -198,7 +200,7 @@ Every command accepts `--lang <id>` (`rust`, `typescript`, `go`, `python`, `c`, 
 
 ## Architecture
 
-Cargo workspace, six crates:
+Cargo workspace:
 
 - `dslp-core` — domain types (`Issue`, `Finding`, `Score`, `LanguagePlugin` trait). No I/O, no parsers.
 - `dslp-base` — file discovery (gitignore-aware), config loading, tree-sitter glue.
@@ -236,7 +238,7 @@ In order:
 
 ## Performance
 
-Release-mode scan of this very workspace (5 crates, ~2,100 LoC) completes in **~26 ms** end-to-end on a Linux laptop. The hot path is single-pass tree-sitter parsing per file with no ASTs round-tripped to disk.
+A scan walks the tree once, reads each file once, and runs the plugins in parallel; parsing is tree-sitter with no ASTs round-tripped to disk. Measure it yourself:
 
 ```bash
 cargo build --release --bin dslp
@@ -249,7 +251,7 @@ time ./target/release/dslp scan --path .
 cargo test --workspace
 ```
 
-190 tests as of v0.12. v0.8 added C/C++ parser glue and the `c.*`/`cpp.*` detectors with shared declarator-identifier extraction. v0.9 adds the workflow loop: the `Status` enum and its serde, the six-row merge truth table (Open/Resolved/Wontfix × re-detected/not), lenient-vs-strict scoring properties (suppressing widens the gap, resolving improves both, lenient ≥ strict always), fingerprint-prefix matching, `resolve`/`suppress` ops, v1-state-discard-on-load, and end-to-end CLI tests for the full scan → suppress → rescan-preserves-wontfix flow. v0.10 adds `plan` (grouping-by-file, penalty ranking, tie-breaking by oldest `first_seen`, Wontfix/Resolved exclusion) and `backlog` (Wontfix-only filtering, most-recently-suppressed-first ordering) with unit and CLI end-to-end coverage. v0.11 adds `badge`: color-threshold table, strict-vs-lenient score selection, and a no-scan placeholder payload. v0.12 adds `--lang`: per-language state file scoping, an unknown-lang error path, and end-to-end coverage for scoped scan/findings/resolve independence from the unscoped state.
+203 tests as of v0.12. v0.8 added C/C++ parser glue and the `c.*`/`cpp.*` detectors with shared declarator-identifier extraction. v0.9 adds the workflow loop: the `Status` enum and its serde, the six-row merge truth table (Open/Resolved/Wontfix × re-detected/not), lenient-vs-strict scoring properties (suppressing widens the gap, resolving improves both, lenient ≥ strict always), fingerprint-prefix matching, `resolve`/`suppress` ops, v1-state-discard-on-load, and end-to-end CLI tests for the full scan → suppress → rescan-preserves-wontfix flow. v0.10 adds `plan` (grouping-by-file, penalty ranking, tie-breaking by oldest `first_seen`, Wontfix/Resolved exclusion) and `backlog` (Wontfix-only filtering, most-recently-suppressed-first ordering) with unit and CLI end-to-end coverage. v0.11 adds `badge`: color-threshold table, strict-vs-lenient score selection, and a no-scan placeholder payload. v0.12 adds `--lang`: per-language state file scoping, an unknown-lang error path, and end-to-end coverage for scoped scan/findings/resolve independence from the unscoped state.
 
 ## License
 
