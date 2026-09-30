@@ -29,7 +29,6 @@ pub fn run(
     path: &Path,
     source: &str,
     tree: &Tree,
-    _lang_prefix: &'static str,
     cfg: &ComplexityConfig,
 ) -> Vec<Finding> {
     let mut out = Vec::new();
@@ -98,70 +97,12 @@ fn walk_functions<'a, F: FnMut(Node<'a>, &str)>(node: Node<'a>, bytes: &[u8], f:
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "function_definition" {
-            if let Some(name) = cpp_function_name(child, bytes) {
+            if let Some(name) = dslp_lang_common::c_family_function_name(child, bytes) {
                 f(child, &name);
             }
         }
         walk_functions(child, bytes, f);
     }
-}
-
-fn cpp_function_name(fn_node: Node, bytes: &[u8]) -> Option<String> {
-    let decl = fn_node.child_by_field_name("declarator")?;
-    extract_declarator_identifier(decl, bytes)
-}
-
-fn extract_declarator_identifier(node: Node, bytes: &[u8]) -> Option<String> {
-    if let Some(direct) = direct_identifier(node, bytes) {
-        return Some(direct);
-    }
-    if is_wrapping_declarator(node.kind()) {
-        return extract_declarator_identifier(node.child_by_field_name("declarator")?, bytes);
-    }
-    if is_compound_name(node.kind()) {
-        return last_child_identifier(node, bytes);
-    }
-    first_descendant_identifier(node, bytes)
-}
-
-fn direct_identifier(node: Node, bytes: &[u8]) -> Option<String> {
-    matches!(node.kind(), "identifier" | "field_identifier")
-        .then(|| node.utf8_text(bytes).ok().map(String::from))
-        .flatten()
-}
-
-fn is_wrapping_declarator(kind: &str) -> bool {
-    matches!(
-        kind,
-        "function_declarator"
-            | "pointer_declarator"
-            | "parenthesized_declarator"
-            | "reference_declarator"
-            | "rvalue_reference_declarator"
-    )
-}
-
-fn is_compound_name(kind: &str) -> bool {
-    matches!(kind, "qualified_identifier" | "operator_name" | "destructor_name")
-}
-
-fn last_child_identifier(node: Node, bytes: &[u8]) -> Option<String> {
-    let mut cursor = node.walk();
-    let last = node.named_children(&mut cursor).last()?;
-    match last.kind() {
-        "identifier" | "field_identifier" => last.utf8_text(bytes).ok().map(String::from),
-        _ => extract_declarator_identifier(last, bytes),
-    }
-}
-
-fn first_descendant_identifier(node: Node, bytes: &[u8]) -> Option<String> {
-    let mut cursor = node.walk();
-    for child in node.named_children(&mut cursor) {
-        if let Some(s) = extract_declarator_identifier(child, bytes) {
-            return Some(s);
-        }
-    }
-    None
 }
 
 #[cfg(test)]
@@ -183,7 +124,7 @@ mod tests {
     fn simple_cpp_fn_does_not_fire() {
         let src = "#include <cstdint>\nint ok(int x) { return x + 1; }\n";
         let t = parse_cpp(src);
-        let r = run(Path::new("a.cpp"), src, &t, "cpp", &cfg());
+        let r = run(Path::new("a.cpp"), src, &t, &cfg());
         assert!(r.is_empty(), "got: {:?}", r);
     }
 
@@ -203,7 +144,7 @@ int tangle(int x) {
 }
 "#;
         let t = parse_cpp(src);
-        let r = run(Path::new("a.cpp"), src, &t, "cpp", &cfg());
+        let r = run(Path::new("a.cpp"), src, &t, &cfg());
         assert!(
             r.iter().any(|f| f.detector == "cpp.complexity"),
             "expected cpp.complexity, got: {:?}",
@@ -231,7 +172,7 @@ int safe_div(int a, int b) {
 }
 "#;
         let t = parse_cpp(src);
-        let r = run(Path::new("a.cpp"), src, &t, "cpp", &cfg());
+        let r = run(Path::new("a.cpp"), src, &t, &cfg());
         assert!(
             r.iter().any(|f| f.detector == "cpp.complexity"),
             "expected catch clauses to drive complexity, got: {:?}",
@@ -256,7 +197,7 @@ int sum_positive(const std::vector<int>& xs) {
 }
 "#;
         let t = parse_cpp(src);
-        let r = run(Path::new("a.cpp"), src, &t, "cpp", &cfg());
+        let r = run(Path::new("a.cpp"), src, &t, &cfg());
         assert!(
             r.iter().any(|f| f.detector == "cpp.complexity"),
             "expected range-for to participate in complexity, got: {:?}",

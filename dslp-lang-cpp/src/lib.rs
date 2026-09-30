@@ -51,7 +51,6 @@ impl LanguagePlugin for CppPlugin {
                 &fh.path,
                 &fh.source,
                 &tree,
-                "cpp",
                 &cfg.detectors.complexity,
             ));
         }

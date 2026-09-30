@@ -51,7 +51,6 @@ impl LanguagePlugin for CPlugin {
                 &fh.path,
                 &fh.source,
                 &tree,
-                "c",
                 &cfg.detectors.complexity,
             ));
         }
