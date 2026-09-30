@@ -8,7 +8,7 @@ mod commands;
 mod output;
 
 use cli::{Cli, Command, MutateCommand, QueryCommand};
-use commands::{
+use commands::{ScanGate, 
     cmd_backlog, cmd_badge, cmd_findings, cmd_next, cmd_plan, cmd_reopen, cmd_resolve, cmd_scan, cmd_score,
     cmd_suppress,
 };
@@ -53,7 +53,10 @@ fn validate_lang(lang: Option<&str>, plugins: &[Box<dyn LanguagePlugin>]) -> any
 
 fn dispatch(command: Command, plugins: Vec<Box<dyn LanguagePlugin>>) -> anyhow::Result<ExitCode> {
     match command {
-        Command::Scan { target, json } => cmd_scan(&target.path(), plugins, json, target.lang()),
+        Command::Scan { target, json, fail_under, fail_on_new } => {
+            let gate = ScanGate { fail_under, fail_on_new };
+            cmd_scan(&target.path(), plugins, json, target.lang(), gate)
+        }
         Command::Query(q) => dispatch_query(q),
         Command::Mutate(m) => dispatch_mutate(m),
     }

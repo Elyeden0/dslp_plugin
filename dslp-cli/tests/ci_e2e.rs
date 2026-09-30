@@ -33,3 +33,29 @@ fn scan_reports_change_since_last_scan() {
     let json: serde_json::Value = serde_json::from_slice(&run(&["scan", "--json"], &dir).stdout).unwrap();
     assert_eq!(json["delta"]["new"], 0);
 }
+
+#[test]
+fn fail_under_gates_on_strict_score() {
+    let dir = fresh_dir("ci-under");
+    std::fs::write(dir.join("a.rs"), complex_rs("helper")).unwrap();
+    assert_eq!(run(&["scan", "--fail-under", "99.9"], &dir).status.code(), Some(1));
+    assert_eq!(run(&["scan", "--fail-under", "50"], &dir).status.code(), Some(0));
+}
+
+#[test]
+fn fail_on_new_only_fires_with_a_baseline() {
+    let dir = fresh_dir("ci-new");
+    std::fs::write(dir.join("a.rs"), "fn main() {}\n").unwrap();
+    assert_eq!(run(&["scan", "--fail-on-new"], &dir).status.code(), Some(0));
+
+    std::fs::write(dir.join("b.rs"), complex_rs("helper")).unwrap();
+    let out = run(&["scan", "--fail-on-new"], &dir);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("1 new"));
+    // Same code again: nothing new, so it passes.
+    assert_eq!(run(&["scan", "--fail-on-new"], &dir).status.code(), Some(0));
+
+    let fresh = fresh_dir("ci-new-first");
+    std::fs::write(fresh.join("b.rs"), complex_rs("helper")).unwrap();
+    assert_eq!(run(&["scan", "--fail-on-new"], &fresh).status.code(), Some(0), "first scan has no baseline");
+}

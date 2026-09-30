@@ -5,11 +5,32 @@ use dslp_core::{Issue, LanguagePlugin};
 
 use crate::output::{print_delta_line, print_issue, print_issue_line, print_score_line, severity_label};
 
+/// CI gating conditions for `scan`; any violated one makes it exit 1.
+pub struct ScanGate {
+    pub fail_under: Option<f64>,
+    pub fail_on_new: bool,
+}
+
+impl ScanGate {
+    fn violation(&self, report: &dslp_engine::ScanReport) -> Option<String> {
+        let strict = report.state.score.strict;
+        if let Some(min) = self.fail_under.filter(|min| strict < *min) {
+            return Some(format!("strict score {strict:.1} is below --fail-under {min}"));
+        }
+        let d = &report.delta;
+        if self.fail_on_new && d.has_baseline() && d.new + d.regressed > 0 {
+            return Some(format!("{} new and {} regressed issue(s) since the previous scan", d.new, d.regressed));
+        }
+        None
+    }
+}
+
 pub fn cmd_scan(
     path: &Path,
     plugins: Vec<Box<dyn LanguagePlugin>>,
     json: bool,
     lang: Option<&str>,
+    gate: ScanGate,
 ) -> anyhow::Result<ExitCode> {
     let selected: Vec<Box<dyn LanguagePlugin>> = match lang {
         Some(id) => plugins.into_iter().filter(|p| p.id() == id).collect(),
@@ -31,6 +52,10 @@ pub fn cmd_scan(
         println!("Scanned {} file(s), {} LoC", report.files_scanned, report.total_loc);
         print_score_line(score);
         print_delta_line(&report.delta, score.strict);
+    }
+    if let Some(why) = gate.violation(&report) {
+        eprintln!("error: {why}");
+        return Ok(ExitCode::from(1));
     }
     Ok(ExitCode::SUCCESS)
 }

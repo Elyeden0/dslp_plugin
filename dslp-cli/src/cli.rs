@@ -52,6 +52,13 @@ pub enum Command {
         /// Emit machine-readable JSON to stdout instead of human text
         #[arg(long, default_value_t = false)]
         json: bool,
+        /// Exit 1 if the strict score is below this value (0-100), for CI gating
+        #[arg(long, value_name = "SCORE")]
+        fail_under: Option<f64>,
+        /// Exit 1 if this scan found new or regressed issues since the previous
+        /// scan (never fails the first scan, which has nothing to compare to)
+        #[arg(long, default_value_t = false)]
+        fail_on_new: bool,
     },
     #[command(flatten)]
     Query(QueryCommand),

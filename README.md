@@ -47,6 +47,9 @@ dslp suppress <fingerprint> --reason "intentional here" --path /path/to/project
 # Undo either: put an issue back in the queue
 dslp reopen <fingerprint> --path /path/to/project
 
+# CI gating: exit 1 if strict < 80, or if this scan found new/regressed issues
+dslp scan --fail-under 80 --fail-on-new --path .
+
 # Monorepo: score one language independently of the others under the same --path
 dslp scan --lang go --path /path/to/monorepo
 dslp findings --lang go --path /path/to/monorepo
@@ -65,7 +68,7 @@ dslp plan --json --path .   # array of { file, penalty, issue_count, highest_sev
 dslp backlog --json --path .   # array of wontfix Issues
 ```
 
-Add `.dslp/` to your `.gitignore`. State persists across runs so progress carries over.
+`--fail-on-new` compares against the previous scan's state, so it only has something to compare to where `.dslp/` persists between runs (e.g. a cached CI directory); the first scan never fails it. Add `.dslp/` to your `.gitignore`. State persists across runs so progress carries over.
 
 ## What it detects
 
