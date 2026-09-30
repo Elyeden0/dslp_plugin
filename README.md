@@ -2,7 +2,7 @@
 
 A Rust port of the analyse → score → "what to fix" core of [desloppify](https://github.com/peteromallet/desloppify). Scans your codebase, scores it 0-100, and tells your AI agent (or you) what to fix next.
 
-**v0.13, in progress.** `dslp` analyses a project with tree-sitter, turns what it finds into tracked *issues*, and keeps a 0–100 score you can gate CI on.
+**v0.13.** `dslp` analyses a project with tree-sitter, turns what it finds into tracked *issues*, and keeps a 0–100 score you can gate CI on.
 
 - **Languages:** Rust, TypeScript/JavaScript, Go, Python, C, C++, plus React, Next.js and Nuxt detectors that switch on automatically.
 - **Slop-focused checks:** duplicated code, commented-out code, swallowed errors, leftover debugging, long parameter lists, deep nesting, and more (see [What it detects](#what-it-detects)).
