@@ -41,7 +41,7 @@ Can't or won't fix one? `dslp suppress <fingerprint> --reason "..."` (or a `dslp
 Every command takes the project directory either as a positional argument (`dslp scan ./project`) or as `--path ./project` (default: the current directory). Giving both is an error. The examples below use `--path`.
 
 ```bash
-# Once per project: starter .dslp/config.toml + ignore .dslp/ in .gitignore
+# Once per project: starter .dslp/config.toml + ignore the state files (.dslp/state*) in .gitignore
 dslp init --path /path/to/project
 
 # Scan a project (writes state to .dslp/state.json)
@@ -125,7 +125,30 @@ State persists in `.dslp/` across runs so progress carries over. Commit `.dslp/c
 
 ## What it detects
 
-### Rust (`.rs`)
+Every detector has an id like `rust.complexity` and a severity (low, medium, high, critical) that feeds the [score](#scoring). Turn any of them off or change its severity in the [config](#configuration).
+
+### At a glance
+
+| Check | Rust | TS/JS | Go | Python | C | C++ |
+|---|---|---|---|---|---|---|
+| File size | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Cyclomatic complexity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Function length | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Too many parameters | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Deep nesting | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Commented-out code, comments that restate the code | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Swallowed errors | | `ts.empty-catch` | `go.ignored-error` | `python.silent-except` | | `cpp.empty-catch` |
+| Leftover debugging | `rust.leftover-debug` | `ts.leftover-debug` | | `python.leftover-debug` | | |
+| Unfinished code | `rust.unfinished` | | | | | |
+| Habit density (per file) | `rust.unwrap-density` | `ts.any-density` | | | | |
+| Unused public items | `rust.dead-pub-*` | `ts.dead-export` | | | | |
+
+Across all languages, `dup.block` finds duplicated code. Framework detectors switch on automatically: React (`react.hook-return-bloat`), Next.js (`nextjs.use-client-not-first`), Nuxt (`nuxt.composable-naming`).
+
+Details, thresholds and exact rules are below; click a language to expand.
+
+<details>
+<summary><b>Rust (.rs)</b></summary>
 
 | Detector | What it flags |
 |---|---|
@@ -139,7 +162,10 @@ State persists in `.dslp/` across runs so progress carries over. Commit `.dslp/c
 | `rust.unwrap-density` | A file with ≥ 10 `.unwrap()` / `.expect()` calls outside `#[test]` / `mod tests` / `tests/`. One finding per file. Low severity. |
 | `rust.dead-pub-fn` / `-struct` / `-enum` / `-trait` | Public items whose name isn't referenced anywhere in the corpus. Low severity (heuristic — false positives possible on macro-generated or trait-dispatched code). |
 
-### TypeScript / JavaScript (`.ts`, `.tsx`, `.js`, `.jsx`, `.cjs`, `.mjs`)
+</details>
+
+<details>
+<summary><b>TypeScript / JavaScript (.ts, .tsx, .js, .jsx, .cjs, .mjs)</b></summary>
 
 | Detector | What it flags |
 |---|---|
@@ -151,9 +177,14 @@ State persists in `.dslp/` across runs so progress carries over. Commit `.dslp/c
 | `ts.empty-catch` | A `catch` block with no statements at all (a comment inside counts as a deliberate ignore). Medium severity. |
 | `ts.leftover-debug` | `console.log` / `console.debug` / `console.trace` calls and `debugger` statements. Low severity. |
 | `ts.any-density` | A file with ≥ 5 explicit `any` types. One finding per file. Low severity. |
-| `ts.dead-export` | `export function/const/class/interface/type/enum` whose name isn't mentioned anywhere else in the project. Name-based and conservative: skipped for library packages (`package.json` with `main` / `module` / `exports` / `types`), for `export default` and `export { .. }` clauses, and for files a framework loads by convention (`index`, `page`, `layout`, `route`, `pages/`, `app/`, `components/`, `composables/`, `server/`, `utils/`, `*.config.*`, `*.d.ts`, tests). `detectors.dead_pub.ignore_paths` applies. Low severity. |
+| `ts.dead-export` | `export function/const/class/interface/type/enum` whose name isn't mentioned anywhere else in the project (see notes below). Low severity. |
 
-### Go (`.go`)
+**`ts.dead-export` notes.** It matches names only and counts any mention (import, re-export, local use, JSX, type) as a reference, so it errs towards silence. It is skipped for library packages (`package.json` with `main` / `module` / `exports` / `types`), for `export default` and `export { .. }` clauses, and for files a framework loads by convention (`index`, `page`, `layout`, `route`, `pages/`, `app/`, `components/`, `composables/`, `server/`, `utils/`, `*.config.*`, `*.d.ts`, tests). `detectors.dead_pub.ignore_paths` applies.
+
+</details>
+
+<details>
+<summary><b>Go (.go)</b></summary>
 
 | Detector | What it flags |
 |---|---|
@@ -164,7 +195,10 @@ State persists in `.dslp/` across runs so progress carries over. Commit `.dslp/c
 | `go.nesting` | Functions nesting `if` / `switch` / `select` / loops 5+ levels deep (`else if` chains do not add depth). Low severity. |
 | `go.ignored-error` | `_ = f()` / `_, _ = f()`: a call whose result is assigned only to the blank identifier, discarding a possible error. Medium severity. |
 
-### Python (`.py`, `.pyi`)
+</details>
+
+<details>
+<summary><b>Python (.py, .pyi)</b></summary>
 
 | Detector | What it flags |
 |---|---|
@@ -176,7 +210,10 @@ State persists in `.dslp/` across runs so progress carries over. Commit `.dslp/c
 | `python.silent-except` | An `except` block containing only `pass` / `...`. Medium severity. |
 | `python.leftover-debug` | `breakpoint()`, `pdb.set_trace()`, `ipdb.set_trace()`. Low severity. |
 
-### C (`.c`, `.h`)
+</details>
+
+<details>
+<summary><b>C (.c, .h)</b></summary>
 
 | Detector | What it flags |
 |---|---|
@@ -186,7 +223,10 @@ State persists in `.dslp/` across runs so progress carries over. Commit `.dslp/c
 | `c.params` | Functions with ≥ 6 parameters. Low severity. |
 | `c.nesting` | Functions nesting `if` / `switch` / loops 5+ levels deep (`else if` chains do not add depth). Low severity. |
 
-### C++ (`.cpp`, `.cc`, `.cxx`, `.c++`, `.hpp`, `.hh`, `.hxx`, `.h++`)
+</details>
+
+<details>
+<summary><b>C++ (.cpp, .cc, .cxx, .c++, .hpp, .hh, .hxx, .h++)</b></summary>
 
 | Detector | What it flags |
 |---|---|
@@ -199,7 +239,10 @@ State persists in `.dslp/` across runs so progress carries over. Commit `.dslp/c
 
 `.h` files belong to the C plugin (the dominant convention for C headers). C++ headers should use `.hpp` to be picked up by the C++ plugin.
 
-### React (auto-activated on React projects)
+</details>
+
+<details>
+<summary><b>React (auto-activated on React projects)</b></summary>
 
 Activates when a project's `package.json` includes any of `react` / `react-dom` / `next` / `gatsby` / `remix` (or any of those in dev/peer deps), or when the file set contains at least one `.tsx` file.
 
@@ -207,13 +250,19 @@ Activates when a project's `package.json` includes any of `react` / `react-dom` 
 |---|---|
 | `react.hook-return-bloat` | Custom hooks (`useXxx`) whose final `return` is an object literal with > 12 fields. Threshold matches desloppify's reference detector. The signal: a hook bundling too many concerns is a refactor candidate. |
 
-### Next.js (auto-activated when `next` is in `package.json`)
+</details>
+
+<details>
+<summary><b>Next.js (auto-activated when next is in package.json)</b></summary>
 
 | Detector | What it flags |
 |---|---|
 | `nextjs.use-client-not-first` | A `'use client'` directive that isn't the first meaningful line of the module. Next.js silently treats such files as server components — a hard-to-spot bug. High severity. Tolerates leading line/block comments and a shebang. |
 
-### Nuxt (auto-activated when `nuxt` is in `package.json`) — net-new
+</details>
+
+<details>
+<summary><b>Nuxt (auto-activated when nuxt is in package.json) — net-new</b></summary>
 
 This is **net-new design** — desloppify ships no Nuxt support, so we couldn't crib from it.
 
@@ -221,18 +270,26 @@ This is **net-new design** — desloppify ships no Nuxt support, so we couldn't 
 |---|---|
 | `nuxt.composable-naming` | A TS/JS file inside a `composables/` directory whose every exported function violates Nuxt's `use[A-Z]` naming convention. Auto-import won't pick those exports up under the expected name. The file passes if at least one of its exported functions is well-named. |
 
-### Comment slop (Rust, TS/JS, Go, Python, C, C++)
+</details>
+
+<details>
+<summary><b>Comment slop (Rust, TS/JS, Go, Python, C, C++)</b></summary>
 
 | Detector | What it flags |
 |---|---|
 | `<lang>.commented-code` | 3+ consecutive `//` (or `#`) comment lines that read as code. Doc comments, shebangs and tool directives (`noqa`, `type:`, `eslint`, ...) are ignored. Low severity. |
 | `<lang>.obvious-comment` | A 2–5 word comment whose words all appear in the identifiers of the line right below it (`// return the result` above `return result;`). Deliberately conservative — it misses paraphrases rather than flag explanations. Low severity. |
 
-### Duplicates (all languages)
+</details>
+
+<details>
+<summary><b>Duplicates (all languages)</b></summary>
 
 | Detector | What it flags |
 |---|---|
 | `dup.block` | A run of ≥ 8 identical significant lines (blank lines, comments, imports and lone braces are ignored) that also appears elsewhere. Of N copies, N−1 are reported, each pointing at the first. Test files (`tests/`, `*_test.*`, `*.spec.*`, `test_*`) are skipped. Low severity, Medium at 20+ lines. Tune with `[detectors.duplicates] min_lines`. |
+
+</details>
 
 ## Configuration
 
@@ -305,7 +362,11 @@ State persists in `.dslp/state.json` (schema v3). State from older versions is d
 
 ## Monorepo support (`--lang`)
 
-Every command accepts `--lang <id>` (`rust`, `typescript`, `go`, `python`, `c`, `cpp`, `react`, `nextjs`, `nuxt`, `duplicates`) to scope it to one plugin. (The duplicate detector is the plugin `duplicates`, but its findings are ids `dup.*`.) A scoped `scan` only runs that plugin and persists to its own `.dslp/state-<lang>.json`, completely independent of the shared `.dslp/state.json` — so a monorepo with e.g. a Go backend and a TypeScript frontend under the same `--path` can track and score each language separately (`dslp scan --lang go`, `dslp scan --lang typescript`) without one language's fixes or regressions touching the other's history. Omit `--lang` to scan/score everything under `--path` together, as before. `--lang` with an unrecognized id fails fast, listing the valid ids.
+Every command accepts `--lang <id>` (`rust`, `typescript`, `go`, `python`, `c`, `cpp`, `react`, `nextjs`, `nuxt`, `duplicates`) to scope it to one plugin. (The duplicate detector is the plugin `duplicates`, but its findings are ids `dup.*`.)
+
+A scoped `scan` runs only that plugin and keeps its own state in `.dslp/state-<lang>.json`, independent of the shared `.dslp/state.json`. A monorepo with, say, a Go backend and a TypeScript frontend can therefore track and score each separately (`dslp scan --lang go`, `dslp scan --lang typescript`) without one language's fixes or regressions touching the other's history.
+
+Omit `--lang` to scan and score everything under `--path` together. An unrecognized id fails fast and lists the valid ones.
 
 ## Architecture
 
@@ -327,12 +388,21 @@ Cargo workspace:
 - `dslp-dup` — cross-language duplicate-block detector.
 - `dslp-cli` — the `dslp` binary.
 
-## Roadmap
+## Status and roadmap
 
-In order:
+All six languages, the three framework plugins, the workflow loop (resolve / suppress / reopen / inline ignores), CI gating and the slop detectors are implemented. What's next, roughly in order:
+
+1. **Decide how complexity is counted** — Rust `match` arms count +1 each (the textbook rule is arms − 1), and closures count toward their parent. Changing either moves existing scores, so it needs a deliberate call.
+2. **Faster partial scans** — `--since` only limits what is *reported*; the whole project is still analysed so cross-file detectors stay correct. Real speed-ups need per-detector "needs the whole corpus" metadata.
+3. **Smarter duplicate detection** — `dup.block` compares normalised lines, so clones with renamed variables slip through; a token-based pass would catch them.
+4. **More slop coverage** — leftover-debug and density checks for Go, C and C++ (printing is legitimate there, so it needs a policy).
+5. **LLM-backed subjective review and autofix** — deliberately deferred.
+
+<details>
+<summary>Version history</summary>
 
 1. ✅ v0.1 — Rust language plugin
-2. ✅ v0.2 — TypeScript / JavaScript language plugin (file-size + complexity + length; dead-export deferred)
+2. ✅ v0.2 — TypeScript / JavaScript language plugin (file-size + complexity + length; unused exports came later, in v0.13)
 3. ✅ v0.3 — React framework plugin (`hook-return-bloat`) with self-gating detection
 4. ✅ v0.4 — Next.js framework plugin (`use-client-not-first`)
 5. ✅ v0.5 — Nuxt framework plugin (`composable-naming`) — net-new, no desloppify reference
@@ -345,7 +415,8 @@ In order:
 12. ✅ v0.11 — Scorecard badge: `dslp badge` emits a shields.io endpoint-badge payload, strict score by default
 13. ✅ v0.12 — `--lang` monorepo support: every command can scope to one plugin, tracked in its own `.dslp/state-<lang>.json`
 14. ✅ v0.13 — CI and slop: scan change summary, `--fail-under` / `--fail-on-new` / `--since`, SARIF, `show` / `reopen` / `init`, `dslp-ignore` comments, richer config, and a batch of new detectors (see [What it detects](#what-it-detects))
-15. Later: LLM-backed subjective review; autofix.
+
+</details>
 
 ## Performance
 
@@ -362,7 +433,7 @@ time ./target/release/dslp scan --path .
 cargo test --workspace
 ```
 
-273 tests as of v0.13: unit tests next to the code they cover (detectors, engine merge/scoring, config) and 50 end-to-end tests in `dslp-cli/tests/` that run the real binary against temporary projects.
+274 tests as of v0.13: unit tests next to the code they cover (detectors, engine merge/scoring, config) and 51 end-to-end tests in `dslp-cli/tests/` that run the real binary against temporary projects.
 
 ## License
 
