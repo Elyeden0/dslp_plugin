@@ -7,6 +7,7 @@
 mod detectors;
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use dslp_base::Config;
 use dslp_core::{FileHandle, Finding, LanguagePlugin, ScanContext};
@@ -88,7 +89,7 @@ impl LanguagePlugin for RustPlugin {
 
 struct Parsed {
     path: std::path::PathBuf,
-    source: String,
+    source: Arc<str>,
     tree: tree_sitter::Tree,
 }
 
@@ -104,7 +105,7 @@ mod tests {
     fn fh(path: &str, source: &str) -> FileHandle {
         FileHandle {
             path: PathBuf::from(path),
-            source: source.to_string(),
+            source: source.into(),
         }
     }
 

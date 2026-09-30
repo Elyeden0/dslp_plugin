@@ -84,7 +84,7 @@ mod tests {
         let dir = tmpdir("tsx_only");
         let files = vec![FileHandle {
             path: PathBuf::from("App.tsx"),
-            source: String::new(),
+            source: "".into(),
         }];
         assert!(is_react_project(&dir, &files));
     }
@@ -94,7 +94,7 @@ mod tests {
         let dir = tmpdir("ts_only");
         let files = vec![FileHandle {
             path: PathBuf::from("util.ts"),
-            source: String::new(),
+            source: "".into(),
         }];
         assert!(!is_react_project(&dir, &files));
     }

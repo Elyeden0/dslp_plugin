@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::Finding;
 
@@ -17,7 +18,7 @@ pub struct ScanContext<'a> {
 #[derive(Debug, Clone)]
 pub struct FileHandle {
     pub path: PathBuf,
-    pub source: String,
+    pub source: Arc<str>,
 }
 
 /// A language plugin: claims file extensions and runs detectors against them.

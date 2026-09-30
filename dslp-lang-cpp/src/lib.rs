@@ -66,7 +66,7 @@ mod tests {
     fn fh(path: &str, source: &str) -> FileHandle {
         FileHandle {
             path: PathBuf::from(path),
-            source: source.to_string(),
+            source: source.into(),
         }
     }
 

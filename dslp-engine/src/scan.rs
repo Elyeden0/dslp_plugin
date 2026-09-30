@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use chrono::Utc;
 use dslp_base::{discover_files, load_config, Config};
@@ -39,7 +40,7 @@ pub fn run_scan(
         .iter()
         .flat_map(|p| p.extensions().iter().copied())
         .collect();
-    let mut sources: HashMap<PathBuf, Option<String>> = HashMap::new();
+    let mut sources: HashMap<PathBuf, Option<Arc<str>>> = HashMap::new();
     let mut handles_per_plugin: Vec<Vec<FileHandle>> = Vec::new();
     let discovered = discover_files(project_root, &all_exts, &config.scan.exclude);
     let mut total_loc: u64 = 0;
@@ -48,7 +49,7 @@ pub fn run_scan(
         let mut handles = Vec::new();
         for abs in discovered.iter().filter(|p| claims(plugin.extensions(), p)) {
             let source = sources.entry(abs.clone()).or_insert_with(|| {
-                let text = std::fs::read_to_string(abs).ok();
+                let text: Option<Arc<str>> = std::fs::read_to_string(abs).ok().map(Arc::from);
                 if let Some(t) = &text {
                     total_loc += t.lines().count() as u64;
                     files_scanned += 1;
@@ -90,7 +91,7 @@ pub fn run_scan(
     let sources: HashMap<PathBuf, &str> = handles_per_plugin
         .iter()
         .flatten()
-        .map(|h| (h.path.clone(), h.source.as_str()))
+        .map(|h| (h.path.clone(), &*h.source))
         .collect();
     let ignored = crate::inline::ignored(&all_findings, &sources);
     let mut issues = merge_issues(prev.as_ref(), all_findings, now);
