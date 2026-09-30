@@ -43,6 +43,9 @@ impl LanguagePlugin for TsPlugin {
             let Ok(tree) = dslp_base::parse(lang_id, &fh.source) else {
                 continue;
             };
+            findings.extend(dslp_lang_common::comments::run(
+                &fh.path, &fh.source, "ts", "//",
+            ));
             findings.extend(detectors::file_size::run(
                 &fh.path,
                 &fh.source,

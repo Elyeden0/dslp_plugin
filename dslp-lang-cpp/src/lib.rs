@@ -41,6 +41,9 @@ impl LanguagePlugin for CppPlugin {
             let Ok(tree) = dslp_base::parse("cpp", &fh.source) else {
                 continue;
             };
+            findings.extend(dslp_lang_common::comments::run(
+                &fh.path, &fh.source, "cpp", "//",
+            ));
             findings.extend(detectors::file_size::run(
                 &fh.path,
                 &fh.source,

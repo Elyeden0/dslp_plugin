@@ -7,6 +7,8 @@
 //! functions, how names are spelled, which node kinds count as decision
 //! points — stay in the plugins. The mechanical primitives live here.
 
+pub mod comments;
+
 use std::path::Path;
 
 use dslp_base::FileSizeConfig;

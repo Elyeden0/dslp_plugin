@@ -177,6 +177,13 @@ This is **net-new design** — desloppify ships no Nuxt support, so we couldn't 
 |---|---|
 | `nuxt.composable-naming` | A TS/JS file inside a `composables/` directory whose every exported function violates Nuxt's `use[A-Z]` naming convention. Auto-import won't pick those exports up under the expected name. The file passes if at least one of its exported functions is well-named. |
 
+### Comment slop (Rust, TS/JS, Go, Python, C, C++)
+
+| Detector | What it flags |
+|---|---|
+| `<lang>.commented-code` | 3+ consecutive `//` (or `#`) comment lines that read as code. Doc comments, shebangs and tool directives (`noqa`, `type:`, `eslint`, ...) are ignored. Low severity. |
+| `<lang>.obvious-comment` | A 2–5 word comment whose words all appear in the identifiers of the line right below it (`// return the result` above `return result;`). Deliberately conservative — it misses paraphrases rather than flag explanations. Low severity. |
+
 ### Duplicates (all languages)
 
 | Detector | What it flags |

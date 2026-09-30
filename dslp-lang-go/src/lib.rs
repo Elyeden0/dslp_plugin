@@ -44,6 +44,9 @@ impl LanguagePlugin for GoPlugin {
             let Ok(tree) = dslp_base::parse("go", &fh.source) else {
                 continue;
             };
+            findings.extend(dslp_lang_common::comments::run(
+                &fh.path, &fh.source, "go", "//",
+            ));
             findings.extend(detectors::file_size::run(
                 &fh.path,
                 &fh.source,

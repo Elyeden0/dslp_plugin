@@ -248,3 +248,19 @@ fn duplicate_blocks_are_reported_across_languages_and_can_be_disabled() {
         serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
     assert!(v.as_array().unwrap().is_empty());
 }
+
+#[test]
+fn comment_slop_is_detected_in_rust_and_python() {
+    let dir = fresh_dir("comment-slop");
+    std::fs::write(
+        dir.join("a.rs"),
+        "fn main() {\n    // let old = compute(1);\n    // if old > 0 {\n    //     return old;\n    // }\n    // return the result\n    return_it(result);\n}\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("b.py"), "# x = load(1)\n# y = load(2)\n# print(x, y)\nz = 1\n").unwrap();
+    run(&["scan"], &dir);
+    let v: serde_json::Value = serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
+    let ids: Vec<&str> = v.as_array().unwrap().iter().map(|i| i["detector"].as_str().unwrap()).collect();
+    assert!(ids.contains(&"rust.commented-code"), "{ids:?}");
+    assert!(ids.contains(&"python.commented-code"), "{ids:?}");
+}

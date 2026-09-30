@@ -63,6 +63,9 @@ impl LanguagePlugin for RustPlugin {
         // Pass 2: run all three detectors per file.
         let mut findings = Vec::new();
         for p in &parsed {
+            findings.extend(dslp_lang_common::comments::run(
+                &p.path, &p.source, "rust", "//",
+            ));
             findings.extend(detectors::file_size::run(
                 &p.path,
                 &p.source,
