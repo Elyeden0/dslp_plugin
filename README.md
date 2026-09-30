@@ -19,7 +19,12 @@ cd noAIslop
 cargo install --path dslp-cli
 ```
 
-After install, the binary is `dslp`.
+After install, the binary is `dslp`. `cargo install` puts it in `~/.cargo/bin`; if `dslp --version` says "command not found", add that directory to your `PATH`:
+
+- bash/zsh: add `export PATH="$HOME/.cargo/bin:$PATH"` to `~/.bashrc` / `~/.zshrc`
+- fish: run `fish_add_path ~/.cargo/bin`
+
+Update later with `git pull && cargo install --path dslp-cli --force`; remove with `cargo uninstall dslp-cli`.
 
 ## Quick start
 
