@@ -2,7 +2,7 @@
 
 A Rust port of the analyse → score → "what to fix" core of [desloppify](https://github.com/peteromallet/desloppify). Scans your codebase, scores it 0-100, and tells your AI agent (or you) what to fix next.
 
-This is **v0.12 in progress**: Rust + TypeScript/JavaScript + Go + Python + C + C++ language support plus React, Next.js, and Nuxt framework-aware detectors that auto-activate on the right projects, composite score 0-100, persistent state, a resolve/suppress workflow loop, and per-language monorepo scoping. See [docs/superpowers/specs/2026-05-01-rust-port-design.md](docs/superpowers/specs/2026-05-01-rust-port-design.md) and [docs/superpowers/specs/2026-05-29-workflow-loop-design.md](docs/superpowers/specs/2026-05-29-workflow-loop-design.md) for the full design and what's deliberately deferred.
+This is **v0.13 in progress**: Rust + TypeScript/JavaScript + Go + Python + C + C++ language support plus React, Next.js, and Nuxt framework-aware detectors that auto-activate on the right projects, composite score 0-100, persistent state, a resolve/suppress workflow loop, per-language monorepo scoping, CI gating (`--fail-under`, `--fail-on-new`, `--since`, SARIF), inline `dslp-ignore` comments, and slop-focused detectors (duplicate blocks, commented-out code, swallowed errors, leftover debugging, long parameter lists, deep nesting). See [docs/superpowers/specs/2026-05-01-rust-port-design.md](docs/superpowers/specs/2026-05-01-rust-port-design.md) and [docs/superpowers/specs/2026-05-29-workflow-loop-design.md](docs/superpowers/specs/2026-05-29-workflow-loop-design.md) for the full design and what's deliberately deferred.
 
 ## Install
 
@@ -312,7 +312,8 @@ In order:
 11. ✅ v0.10 — Triage workflow: `plan` (open issues grouped by file, ranked by total severity penalty) and `backlog` (the wontfix list, previously invisible outside raw state)
 12. ✅ v0.11 — Scorecard badge: `dslp badge` emits a shields.io endpoint-badge payload, strict score by default
 13. ✅ v0.12 — `--lang` monorepo support: every command can scope to one plugin, tracked in its own `.dslp/state-<lang>.json`
-14. Later: LLM-backed subjective review; autofix.
+14. ✅ v0.13 — CI and slop: change summary per scan, `--fail-under` / `--fail-on-new` / `--since`, SARIF output, `show` / `reopen` / `init`, `dslp-ignore` comments, config `disable` / `severity` / per-language thresholds, and the params / nesting / empty-catch / leftover-debug / unwrap- and any-density / ignored-error / commented-code / obvious-comment / dead-export / duplicate-block detectors
+15. Later: LLM-backed subjective review; autofix.
 
 ## Performance
 
@@ -329,8 +330,8 @@ time ./target/release/dslp scan --path .
 cargo test --workspace
 ```
 
-203 tests as of v0.12. v0.8 added C/C++ parser glue and the `c.*`/`cpp.*` detectors with shared declarator-identifier extraction. v0.9 adds the workflow loop: the `Status` enum and its serde, the six-row merge truth table (Open/Resolved/Wontfix × re-detected/not), lenient-vs-strict scoring properties (suppressing widens the gap, resolving improves both, lenient ≥ strict always), fingerprint-prefix matching, `resolve`/`suppress` ops, v1-state-discard-on-load, and end-to-end CLI tests for the full scan → suppress → rescan-preserves-wontfix flow. v0.10 adds `plan` (grouping-by-file, penalty ranking, tie-breaking by oldest `first_seen`, Wontfix/Resolved exclusion) and `backlog` (Wontfix-only filtering, most-recently-suppressed-first ordering) with unit and CLI end-to-end coverage. v0.11 adds `badge`: color-threshold table, strict-vs-lenient score selection, and a no-scan placeholder payload. v0.12 adds `--lang`: per-language state file scoping, an unknown-lang error path, and end-to-end coverage for scoped scan/findings/resolve independence from the unscoped state.
+273 tests as of v0.13, roughly a third of them end-to-end tests that drive the real binary (`dslp-cli/tests/`). Every detector has unit tests for the firing case and the near-miss it must not flag, and detectors that key findings by name or scope have a fingerprint-stability test (the finding keeps its identity when code above it moves). The engine tests cover the merge truth table, lenient-vs-strict scoring, scoped (`--since`) merging, inline ignores, overrides and SARIF mapping.
 
 ## License
 
-Same dual MIT-or-Apache-2 as is conventional for Rust workspaces. See `LICENSE` (TODO: drop one in).
+Declared as MIT OR Apache-2.0 in `Cargo.toml`; the license files themselves are still to be added.
