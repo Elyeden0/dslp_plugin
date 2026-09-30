@@ -47,18 +47,27 @@ pub fn node_length_lines(node: Node) -> u32 {
 /// whose `kind()` is in `decision_kinds`. The kind set is the only
 /// per-language difference, so callers pass their own.
 pub fn cyclomatic(node: Node, decision_kinds: &[&str]) -> u32 {
+    cyclomatic_excluding(node, decision_kinds, &[])
+}
+
+/// Like [`cyclomatic`], but does not descend into nodes whose kind is in
+/// `skip_kinds` (nested named functions, which are scored on their own and
+/// shouldn't also inflate the enclosing function).
+pub fn cyclomatic_excluding(node: Node, decision_kinds: &[&str], skip_kinds: &[&str]) -> u32 {
     let mut score: u32 = 1;
-    recur(node, decision_kinds, &mut score);
+    recur(node, decision_kinds, skip_kinds, &mut score);
     score
 }
 
-fn recur(node: Node, decision_kinds: &[&str], score: &mut u32) {
+fn recur(node: Node, decision_kinds: &[&str], skip_kinds: &[&str], score: &mut u32) {
     if decision_kinds.contains(&node.kind()) {
         *score += 1;
     }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        recur(child, decision_kinds, score);
+        if !skip_kinds.contains(&child.kind()) {
+            recur(child, decision_kinds, skip_kinds, score);
+        }
     }
 }
 

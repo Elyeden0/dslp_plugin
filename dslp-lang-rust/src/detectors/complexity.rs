@@ -3,8 +3,8 @@ use std::path::Path;
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
 use dslp_lang_common::{
-    cyclomatic, finding_at_node, max_nesting, nesting_finding, node_length_lines, param_count,
-    params_finding,
+    cyclomatic_excluding, finding_at_node, max_nesting, nesting_finding, node_length_lines,
+    param_count, params_finding,
 };
 use tree_sitter::{Node, Tree};
 
@@ -22,6 +22,8 @@ const DECISION_KINDS: &[&str] = &[
 
 /// Per-function cyclomatic complexity + length. The walk and name extraction
 /// are Rust-specific; the counting/length/finding machinery is shared.
+/// Nested named functions get their own findings; skip them in the parent.
+const NESTED_FN_KINDS: &[&str] = &["function_item"];
 /// Control-flow nodes that add a nesting level.
 const NESTING_KINDS: &[&str] = &[
     "if_expression",
@@ -38,7 +40,7 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
     let bytes = source.as_bytes();
     walk_functions(tree.root_node(), bytes, &mut |fn_node, name| {
         let body = fn_node.child_by_field_name("body").unwrap_or(fn_node);
-        let cx = cyclomatic(body, DECISION_KINDS);
+        let cx = cyclomatic_excluding(body, DECISION_KINDS, NESTED_FN_KINDS);
         let length = node_length_lines(fn_node);
 
         if cx >= cfg.cyclomatic_threshold {
@@ -210,5 +212,17 @@ fn tangle(x: i32) -> i32 {
             "got: {:?}",
             r
         );
+    }
+
+    #[test]
+    fn nested_fn_does_not_inflate_parent() {
+        let src = "fn outer() { fn inner(x: i32) { if x > 0 {} if x > 1 {} if x > 2 {} if x > 3 {} } inner(1); }";
+        let r = run(Path::new("a.rs"), src, &parse(src), &cfg());
+        let flagged: Vec<_> = r
+            .iter()
+            .filter(|f| f.detector == "rust.complexity")
+            .collect();
+        assert_eq!(flagged.len(), 1, "only inner should fire: {:?}", flagged);
+        assert!(flagged[0].message.contains("`inner`"));
     }
 }
