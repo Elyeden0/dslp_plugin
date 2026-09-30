@@ -6,6 +6,7 @@
 //! system (`export` / `export default` / re-exports / dynamic imports / JSX
 //! references) needs its own design pass.
 
+mod detection;
 mod detectors;
 
 use dslp_base::Config;
@@ -36,13 +37,17 @@ impl LanguagePlugin for TsPlugin {
 
     fn scan(&self, ctx: &ScanContext, files: &[FileHandle]) -> Vec<Finding> {
         let cfg: Config = serde_json::from_value(ctx.config.clone()).unwrap_or_default();
+        let parsed: Vec<(&FileHandle, tree_sitter::Tree)> = files
+            .iter()
+            .filter_map(|fh| {
+                let lang_id = lang_for_extension(&fh.path)?;
+                let tree = dslp_base::parse(lang_id, &fh.source).ok()?;
+                Some((fh, tree))
+            })
+            .collect();
+
         let mut findings = Vec::new();
-        for fh in files {
-            let lang = lang_for_extension(&fh.path);
-            let Some(lang_id) = lang else { continue };
-            let Ok(tree) = dslp_base::parse(lang_id, &fh.source) else {
-                continue;
-            };
+        for (fh, tree) in &parsed {
             findings.extend(dslp_lang_common::comments::run(
                 &fh.path, &fh.source, "ts", "//",
             ));
@@ -54,18 +59,60 @@ impl LanguagePlugin for TsPlugin {
             findings.extend(detectors::complexity::run(
                 &fh.path,
                 &fh.source,
-                &tree,
+                tree,
                 &cfg.detectors.complexity_for("typescript"),
             ));
             findings.extend(detectors::slop::run(
                 &fh.path,
                 &fh.source,
-                &tree,
+                tree,
                 &cfg.detectors.slop,
             ));
         }
+        findings.extend(dead_exports(ctx, &cfg, &parsed));
         findings
     }
+}
+
+/// Exported names nobody else mentions. Skipped for library packages, whose
+/// exports are the public API.
+fn dead_exports(
+    ctx: &ScanContext,
+    cfg: &Config,
+    parsed: &[(&FileHandle, tree_sitter::Tree)],
+) -> Vec<Finding> {
+    if detection::is_library(ctx.project_root) {
+        return Vec::new();
+    }
+    let analyzed: Vec<_> = parsed
+        .iter()
+        .map(|(fh, tree)| (fh, detectors::dead_export::analyze(&fh.source, tree)))
+        .collect();
+    let refs: std::collections::HashSet<&String> = analyzed
+        .iter()
+        .flat_map(|(_, (_, refs))| refs.iter())
+        .collect();
+    let mut out = Vec::new();
+    for (fh, (decls, _)) in &analyzed {
+        let path = fh.path.to_string_lossy();
+        let skipped = detectors::dead_export::is_entry_or_convention(&fh.path)
+            || cfg
+                .detectors
+                .dead_pub
+                .ignore_paths
+                .iter()
+                .any(|p| path.contains(p.as_str()));
+        if skipped {
+            continue;
+        }
+        out.extend(
+            decls
+                .iter()
+                .filter(|d| !refs.contains(&d.name))
+                .map(|d| detectors::dead_export::finding(&fh.path, d)),
+        );
+    }
+    out
 }
 
 fn lang_for_extension(path: &std::path::Path) -> Option<&'static str> {

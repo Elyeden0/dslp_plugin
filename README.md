@@ -114,8 +114,7 @@ dslp backlog --json --path .   # array of wontfix Issues
 | `ts.empty-catch` | A `catch` block with no statements at all (a comment inside counts as a deliberate ignore). Medium severity. |
 | `ts.leftover-debug` | `console.log` / `console.debug` / `console.trace` calls and `debugger` statements. Low severity. |
 | `ts.any-density` | A file with ≥ 5 explicit `any` types. One finding per file. Low severity. |
-
-A "dead-export" detector for TS/JS is intentionally not in this slice — the TS module system (default exports, re-exports, dynamic imports, JSX references) needs its own design pass.
+| `ts.dead-export` | `export function/const/class/interface/type/enum` whose name isn't mentioned anywhere else in the project. Name-based and conservative: skipped for library packages (`package.json` with `main` / `module` / `exports` / `types`), for `export default` and `export { .. }` clauses, and for files a framework loads by convention (`index`, `page`, `layout`, `route`, `pages/`, `app/`, `components/`, `composables/`, `server/`, `utils/`, `*.config.*`, `*.d.ts`, tests). `detectors.dead_pub.ignore_paths` applies. Low severity. |
 
 ### Go (`.go`)
 

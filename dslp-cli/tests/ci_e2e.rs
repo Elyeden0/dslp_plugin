@@ -274,3 +274,46 @@ fn comment_slop_is_detected_in_rust_and_python() {
     assert!(ids.contains(&"rust.commented-code"), "{ids:?}");
     assert!(ids.contains(&"python.commented-code"), "{ids:?}");
 }
+
+#[test]
+fn ts_dead_exports_are_flagged_except_in_libraries_and_convention_files() {
+    let dir = fresh_dir("ts-dead-export");
+    std::fs::create_dir_all(dir.join("src/lib")).unwrap();
+    std::fs::write(
+        dir.join("src/lib/util.ts"),
+        "export function used() {}\nexport function orphan() {}\nexport interface Shape {}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("src/app.ts"),
+        "import { used } from './lib/util';\nused();\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("src/index.ts"), "export const entry = 1;\n").unwrap();
+    let dead = |dir: &std::path::Path| -> Vec<String> {
+        run(&["scan"], dir);
+        let v: serde_json::Value =
+            serde_json::from_slice(&run(&["findings", "--json"], dir).stdout).unwrap();
+        v.as_array()
+            .unwrap()
+            .iter()
+            .filter(|i| i["detector"] == "ts.dead-export")
+            .map(|i| i["message"].as_str().unwrap().to_string())
+            .collect()
+    };
+    let found = dead(&dir);
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert!(
+        found.iter().any(|m| m.contains("`orphan`")) && found.iter().any(|m| m.contains("`Shape`"))
+    );
+
+    std::fs::write(
+        dir.join("package.json"),
+        r#"{"name":"lib","main":"dist/index.js"}"#,
+    )
+    .unwrap();
+    assert!(
+        dead(&dir).is_empty(),
+        "library packages export their API on purpose"
+    );
+}
