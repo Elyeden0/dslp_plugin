@@ -91,6 +91,11 @@ impl Issue {
         self.status = Status::Resolved;
     }
 
+    /// Put a Resolved or Wontfix issue back in the queue.
+    pub fn reopen(&mut self) {
+        self.status = Status::Open;
+    }
+
     pub fn suppress(&mut self, reason: impl Into<String>, at: DateTime<Utc>) {
         self.status = Status::Wontfix {
             reason: reason.into(),
@@ -156,6 +161,14 @@ mod tests {
         i.refresh(finding("x", Severity::Low), later());
         assert!(i.status.is_wontfix(), "wontfix should survive a rescan");
         assert_eq!(i.last_seen, later());
+    }
+
+    #[test]
+    fn reopen_clears_wontfix() {
+        let mut i = Issue::from_new_finding(finding("x", Severity::Low), now());
+        i.suppress("meh", now());
+        i.reopen();
+        assert!(i.is_open());
     }
 
     #[test]

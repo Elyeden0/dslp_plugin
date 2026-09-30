@@ -11,7 +11,7 @@ mod state;
 
 pub use backlog::backlog;
 pub use badge::Badge;
-pub use ops::{resolve, suppress, OpResult};
+pub use ops::{reopen, resolve, suppress, OpResult};
 pub use plan::{plan, PlanEntry};
 pub use queue::{next_issue, queue};
 pub use scan::{run_scan, ScanReport};

@@ -9,7 +9,7 @@ mod output;
 
 use cli::{Cli, Command, MutateCommand, QueryCommand};
 use commands::{
-    cmd_backlog, cmd_badge, cmd_findings, cmd_next, cmd_plan, cmd_resolve, cmd_scan, cmd_score,
+    cmd_backlog, cmd_badge, cmd_findings, cmd_next, cmd_plan, cmd_reopen, cmd_resolve, cmd_scan, cmd_score,
     cmd_suppress,
 };
 
@@ -80,6 +80,9 @@ fn dispatch_mutate(command: MutateCommand) -> anyhow::Result<ExitCode> {
     match command {
         MutateCommand::Resolve { fingerprint, target, json } => {
             cmd_resolve(&target.path(), target.lang(), &fingerprint, json)
+        }
+        MutateCommand::Reopen { fingerprint, target, json } => {
+            cmd_reopen(&target.path(), target.lang(), &fingerprint, json)
         }
         MutateCommand::Suppress { fingerprint, reason, target, json } => {
             cmd_suppress(&target.path(), target.lang(), &fingerprint, &reason, json)

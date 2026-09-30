@@ -181,6 +181,24 @@ pub fn cmd_resolve(path: &Path, lang: Option<&str>, fingerprint: &str, json: boo
     Ok(ExitCode::SUCCESS)
 }
 
+pub fn cmd_reopen(path: &Path, lang: Option<&str>, fingerprint: &str, json: bool) -> anyhow::Result<ExitCode> {
+    let res = dslp_engine::reopen(path, lang, fingerprint)?;
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "reopened": res.issue.fingerprint,
+                "detector": res.issue.detector,
+                "score": res.score,
+            }))?
+        );
+    } else {
+        println!("Reopened {} ({})", crate::output::short_fp(&res.issue.fingerprint), res.issue.detector);
+        print_score_line(&res.score);
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
 pub fn cmd_suppress(path: &Path, lang: Option<&str>, fingerprint: &str, reason: &str, json: bool) -> anyhow::Result<ExitCode> {
     let res = dslp_engine::suppress(path, lang, fingerprint, reason)?;
     if json {

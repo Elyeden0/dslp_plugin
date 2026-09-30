@@ -69,6 +69,17 @@ fn unknown_lang_is_rejected_by_every_command() {
 }
 
 #[test]
+fn reopen_undoes_suppress() {
+    let dir = fresh_dir("stab-reopen");
+    std::fs::write(dir.join("a.rs"), complex_rs()).unwrap();
+    run(&["scan"], &dir);
+    let fp = json(&run(&["findings", "--json"], &dir))[0]["fingerprint"].as_str().unwrap().to_string();
+    run(&["suppress", &fp, "--reason", "ok"], &dir);
+    assert!(run(&["reopen", &fp], &dir).status.success());
+    assert_eq!(json(&run(&["findings", "--json"], &dir)).as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn positional_path_and_flag_conflict() {
     let dir = fresh_dir("stab-conflict");
     let out = run(&["scan", ".", "--path", "."], &dir);

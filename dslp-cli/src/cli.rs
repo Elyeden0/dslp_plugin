@@ -72,9 +72,9 @@ impl Command {
                 | QueryCommand::Badge { target, .. } => target,
             },
             Command::Mutate(m) => match m {
-                MutateCommand::Resolve { target, .. } | MutateCommand::Suppress { target, .. } => {
-                    target
-                }
+                MutateCommand::Resolve { target, .. }
+                | MutateCommand::Suppress { target, .. }
+                | MutateCommand::Reopen { target, .. } => target,
             },
         }
     }
@@ -142,6 +142,15 @@ pub enum QueryCommand {
 pub enum MutateCommand {
     /// Mark an issue fixed (optimistic — a later scan reopens it if it's still there)
     Resolve {
+        /// Issue fingerprint (a unique prefix is enough)
+        fingerprint: String,
+        #[command(flatten)]
+        target: Target,
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+    /// Put a resolved or wontfix issue back in the queue
+    Reopen {
         /// Issue fingerprint (a unique prefix is enough)
         fingerprint: String,
         #[command(flatten)]
