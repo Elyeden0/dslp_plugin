@@ -126,6 +126,7 @@ A "dead-export" detector for TS/JS is intentionally not in this slice — the TS
 | `go.length` | Functions ≥ 50 lines. Low severity. |
 | `go.params` | Functions with ≥ 6 parameters (`a, b int` counts as two). Low severity. |
 | `go.nesting` | Functions nesting `if` / `switch` / `select` / loops 5+ levels deep (`else if` / `elif` chains do not add depth). Low severity. |
+| `go.ignored-error` | `_ = f()` / `_, _ = f()`: a call whose result is assigned only to the blank identifier, discarding a possible error. Medium severity. |
 
 ### Python (`.py`, `.pyi`)
 

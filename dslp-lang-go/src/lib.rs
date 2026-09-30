@@ -58,6 +58,7 @@ impl LanguagePlugin for GoPlugin {
                 &tree,
                 &cfg.detectors.complexity_for("go"),
             ));
+            findings.extend(detectors::slop::run(&fh.path, &fh.source, &tree));
         }
         findings
     }
