@@ -60,6 +60,11 @@ pub enum Command {
         #[arg(long, default_value_t = false)]
         fail_on_new: bool,
     },
+    /// Write a starter .dslp/config.toml and ignore .dslp/ in .gitignore
+    Init {
+        #[command(flatten)]
+        target: Target,
+    },
     #[command(flatten)]
     Query(QueryCommand),
     #[command(flatten)]
@@ -70,8 +75,10 @@ impl Command {
     pub fn target(&self) -> &Target {
         match self {
             Command::Scan { target, .. } => target,
+            Command::Init { target } => target,
             Command::Query(q) => match q {
-                QueryCommand::Next { target, .. }
+                QueryCommand::Show { target, .. }
+                | QueryCommand::Next { target, .. }
                 | QueryCommand::Score { target, .. }
                 | QueryCommand::Findings { target, .. }
                 | QueryCommand::Plan { target, .. }
@@ -90,6 +97,15 @@ impl Command {
 /// Read-only commands: inspect the last scan's state without changing it.
 #[derive(Subcommand, Debug)]
 pub enum QueryCommand {
+    /// Show one issue in full, whatever its status (open, resolved or wontfix)
+    Show {
+        /// Issue fingerprint (a unique prefix is enough)
+        fingerprint: String,
+        #[command(flatten)]
+        target: Target,
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
     /// Show the highest-priority open issue from the last scan
     Next {
         #[command(flatten)]

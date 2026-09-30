@@ -60,6 +60,50 @@ pub fn cmd_scan(
     Ok(ExitCode::SUCCESS)
 }
 
+pub fn cmd_show(path: &Path, lang: Option<&str>, fingerprint: &str, json: bool) -> anyhow::Result<ExitCode> {
+    let Some(state) = dslp_engine::load(path, lang)? else {
+        return no_scan(path, lang, json);
+    };
+    let idx = dslp_engine::find_by_prefix(&state.issues, fingerprint)?;
+    let issue = &state.issues[idx];
+    if json {
+        println!("{}", serde_json::to_string_pretty(issue)?);
+        return Ok(ExitCode::SUCCESS);
+    }
+    print_issue_line(issue);
+    println!("  {}", issue.message);
+    if let Some(hint) = &issue.fix_hint {
+        println!("  How to fix: {hint}");
+    }
+    match &issue.status {
+        dslp_core::Status::Open => println!("  Status: open"),
+        dslp_core::Status::Resolved => println!("  Status: resolved"),
+        dslp_core::Status::Wontfix { reason, at } => println!("  Status: wontfix ({}) — {reason}", at.format("%Y-%m-%d")),
+    }
+    println!("  First seen {}, last seen {}", issue.first_seen.format("%Y-%m-%d"), issue.last_seen.format("%Y-%m-%d"));
+    Ok(ExitCode::SUCCESS)
+}
+
+pub fn cmd_init(path: &Path) -> anyhow::Result<ExitCode> {
+    let config_path = path.join(".dslp").join("config.toml");
+    if config_path.exists() {
+        anyhow::bail!("{} already exists", config_path.display());
+    }
+    std::fs::create_dir_all(config_path.parent().expect("has a parent"))?;
+    std::fs::write(&config_path, dslp_base::default_config_toml()?)?;
+    println!("Wrote {}", config_path.display());
+
+    let gitignore = path.join(".gitignore");
+    let existing = std::fs::read_to_string(&gitignore).unwrap_or_default();
+    if existing.lines().any(|l| matches!(l.trim(), ".dslp" | ".dslp/" | "/.dslp" | "/.dslp/")) {
+        return Ok(ExitCode::SUCCESS);
+    }
+    let sep = if existing.is_empty() || existing.ends_with('\n') { "" } else { "\n" };
+    std::fs::write(&gitignore, format!("{existing}{sep}.dslp/\n"))?;
+    println!("Added .dslp/ to {}", gitignore.display());
+    Ok(ExitCode::SUCCESS)
+}
+
 pub fn cmd_next(path: &Path, json: bool, lang: Option<&str>) -> anyhow::Result<ExitCode> {
     let Some(state) = dslp_engine::load(path, lang)? else {
         return no_scan(path, lang, json);

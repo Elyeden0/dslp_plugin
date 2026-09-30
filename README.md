@@ -17,11 +17,17 @@ After install, the binary is `dslp`.
 ## Usage
 
 ```bash
+# Once per project: starter .dslp/config.toml + ignore .dslp/ in .gitignore
+dslp init --path /path/to/project
+
 # Scan a project (writes state to .dslp/state.json)
 dslp scan --path /path/to/project
 
 # Show the highest-priority open issue
 dslp next --path /path/to/project
+
+# Full detail on one issue, whatever its status (shows the wontfix reason)
+dslp show <fingerprint> --path /path/to/project
 
 # Print the score: lenient / strict / gap (no rescan)
 dslp score --path /path/to/project

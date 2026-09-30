@@ -5,7 +5,7 @@ mod discovery;
 mod parser;
 
 pub use config::{
-    load_config, ComplexityConfig, Config, DeadPubConfig, DetectorsConfig, FileSizeConfig,
+    default_config_toml, load_config, ComplexityConfig, Config, DeadPubConfig, DetectorsConfig, FileSizeConfig,
     ScanConfig,
 };
 pub use discovery::discover_files;

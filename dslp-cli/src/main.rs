@@ -9,8 +9,8 @@ mod output;
 
 use cli::{Cli, Command, MutateCommand, QueryCommand};
 use commands::{ScanGate, 
-    cmd_backlog, cmd_badge, cmd_findings, cmd_next, cmd_plan, cmd_reopen, cmd_resolve, cmd_scan, cmd_score,
-    cmd_suppress,
+    cmd_backlog, cmd_badge, cmd_findings, cmd_init, cmd_next, cmd_plan, cmd_reopen, cmd_resolve, cmd_scan, cmd_score,
+    cmd_show, cmd_suppress,
 };
 
 fn main() -> ExitCode {
@@ -57,6 +57,7 @@ fn dispatch(command: Command, plugins: Vec<Box<dyn LanguagePlugin>>) -> anyhow::
             let gate = ScanGate { fail_under, fail_on_new };
             cmd_scan(&target.path(), plugins, json, target.lang(), gate)
         }
+        Command::Init { target } => cmd_init(&target.path()),
         Command::Query(q) => dispatch_query(q),
         Command::Mutate(m) => dispatch_mutate(m),
     }
@@ -64,6 +65,9 @@ fn dispatch(command: Command, plugins: Vec<Box<dyn LanguagePlugin>>) -> anyhow::
 
 fn dispatch_query(command: QueryCommand) -> anyhow::Result<ExitCode> {
     match command {
+        QueryCommand::Show { fingerprint, target, json } => {
+            cmd_show(&target.path(), target.lang(), &fingerprint, json)
+        }
         QueryCommand::Next { target, json } => cmd_next(&target.path(), json, target.lang()),
         QueryCommand::Score { target, json } => cmd_score(&target.path(), json, target.lang()),
         QueryCommand::Findings { target, json, limit } => {

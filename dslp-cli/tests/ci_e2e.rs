@@ -59,3 +59,28 @@ fn fail_on_new_only_fires_with_a_baseline() {
     std::fs::write(fresh.join("b.rs"), complex_rs("helper")).unwrap();
     assert_eq!(run(&["scan", "--fail-on-new"], &fresh).status.code(), Some(0), "first scan has no baseline");
 }
+
+#[test]
+fn init_writes_config_and_gitignore_once() {
+    let dir = fresh_dir("wf-init");
+    std::fs::write(dir.join(".gitignore"), "target").unwrap();
+    assert!(run(&["init"], &dir).status.success());
+    assert!(dir.join(".dslp/config.toml").exists());
+    assert_eq!(std::fs::read_to_string(dir.join(".gitignore")).unwrap(), "target\n.dslp/\n");
+    // The generated config must load, and init must not clobber it.
+    std::fs::write(dir.join("a.rs"), "fn main() {}\n").unwrap();
+    assert!(run(&["scan"], &dir).status.success());
+    assert_eq!(run(&["init"], &dir).status.code(), Some(2));
+}
+
+#[test]
+fn show_displays_wontfix_reason() {
+    let dir = fresh_dir("wf-show");
+    std::fs::write(dir.join("a.rs"), complex_rs("helper")).unwrap();
+    run(&["scan"], &dir);
+    let listed: serde_json::Value = serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
+    let fp = listed[0]["fingerprint"].as_str().unwrap().to_string();
+    run(&["suppress", &fp, "--reason", "legacy parser"], &dir);
+    let out = stdout(&run(&["show", &fp[..8]], &dir));
+    assert!(out.contains("wontfix") && out.contains("legacy parser"), "{out}");
+}

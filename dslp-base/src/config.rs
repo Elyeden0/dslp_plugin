@@ -72,6 +72,12 @@ impl Default for ComplexityConfig {
     }
 }
 
+/// The default config as TOML, for `dslp init` — generated from the same
+/// struct the loader reads, so it can't drift from the real defaults.
+pub fn default_config_toml() -> anyhow::Result<String> {
+    Ok(toml::to_string_pretty(&Config::default())?)
+}
+
 /// Load config from `<root>/.dslp/config.toml`. Missing file → defaults.
 pub fn load_config(project_root: &Path) -> anyhow::Result<Config> {
     let path = project_root.join(".dslp").join("config.toml");
@@ -106,6 +112,12 @@ mod tests {
         let cfg = load_config(&dir).unwrap();
         assert_eq!(cfg.detectors.file_size.threshold, 400);
         assert_eq!(cfg.detectors.complexity.cyclomatic_threshold, 10);
+    }
+
+    #[test]
+    fn default_toml_round_trips_to_defaults() {
+        let parsed: Config = toml::from_str(&default_config_toml().unwrap()).unwrap();
+        assert_eq!(parsed, Config::default());
     }
 
     #[test]
