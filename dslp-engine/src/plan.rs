@@ -107,7 +107,7 @@ mod tests {
         );
         let entries = plan(&state_with(issues));
         assert_eq!(entries.len(), 2);
-        let a = entries.iter().find(|e| e.file == PathBuf::from("a.rs")).unwrap();
+        let a = entries.iter().find(|e| e.file == std::path::Path::new("a.rs")).unwrap();
         assert_eq!(a.penalty, Severity::Low.weight() + Severity::Medium.weight());
         assert_eq!(a.issue_count, 2);
         assert_eq!(a.highest_severity, Severity::Medium);

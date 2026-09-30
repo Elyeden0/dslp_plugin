@@ -11,7 +11,7 @@ use crate::state::State;
 /// Wontfix issues, most recently suppressed first.
 pub fn backlog(state: &State) -> Vec<&Issue> {
     let mut v: Vec<&Issue> = state.issues.iter().filter(|i| i.status.is_wontfix()).collect();
-    v.sort_by(|a, b| wontfix_at(b).cmp(&wontfix_at(a)));
+    v.sort_by_key(|i| std::cmp::Reverse(wontfix_at(i)));
     v
 }
 
@@ -79,7 +79,7 @@ mod tests {
             dt("2026-05-01T20:00:00Z"),
         );
         for issue in &mut issues {
-            if issue.file == PathBuf::from("a.rs") {
+            if issue.file == std::path::Path::new("a.rs") {
                 issue.suppress("older decision", dt("2026-01-01T00:00:00Z"));
             } else {
                 issue.suppress("newer decision", dt("2026-06-01T00:00:00Z"));
