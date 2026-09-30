@@ -45,13 +45,13 @@ impl LanguagePlugin for CppPlugin {
                 &fh.path,
                 &fh.source,
                 "cpp.file-size",
-                &cfg.detectors.file_size,
+                &cfg.detectors.file_size_for("cpp"),
             ));
             findings.extend(detectors::complexity::run(
                 &fh.path,
                 &fh.source,
                 &tree,
-                &cfg.detectors.complexity,
+                &cfg.detectors.complexity_for("cpp"),
             ));
         }
         findings

@@ -65,13 +65,13 @@ impl LanguagePlugin for RustPlugin {
             findings.extend(detectors::file_size::run(
                 &p.path,
                 &p.source,
-                &cfg.detectors.file_size,
+                &cfg.detectors.file_size_for("rust"),
             ));
             findings.extend(detectors::complexity::run(
                 &p.path,
                 &p.source,
                 &p.tree,
-                &cfg.detectors.complexity,
+                &cfg.detectors.complexity_for("rust"),
             ));
             findings.extend(detectors::slop::run(&p.path, &p.source, &p.tree));
             findings.extend(detectors::dead_pub::run(

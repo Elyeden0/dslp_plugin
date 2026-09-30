@@ -47,13 +47,13 @@ impl LanguagePlugin for GoPlugin {
             findings.extend(detectors::file_size::run(
                 &fh.path,
                 &fh.source,
-                &cfg.detectors.file_size,
+                &cfg.detectors.file_size_for("go"),
             ));
             findings.extend(detectors::complexity::run(
                 &fh.path,
                 &fh.source,
                 &tree,
-                &cfg.detectors.complexity,
+                &cfg.detectors.complexity_for("go"),
             ));
         }
         findings

@@ -39,6 +39,19 @@ pub fn cmd_scan(
     lang: Option<&str>,
     gate: ScanGate,
 ) -> anyhow::Result<ExitCode> {
+    let config = dslp_base::load_config(path)?;
+    if let Some(bad) = config
+        .detectors
+        .languages
+        .keys()
+        .find(|k| !plugins.iter().any(|p| p.id() == k.as_str()))
+    {
+        let known: Vec<&str> = plugins.iter().map(|p| p.id()).collect();
+        anyhow::bail!(
+            "unknown language '{bad}' in [detectors.languages]. Valid values: {}",
+            known.join(", ")
+        );
+    }
     let selected: Vec<Box<dyn LanguagePlugin>> = match lang {
         Some(id) => plugins.into_iter().filter(|p| p.id() == id).collect(),
         None => plugins,

@@ -190,6 +190,10 @@ disable = ["rust.dead-pub-fn", "ts.*"]   # exact ids, or a family with a trailin
 [detectors.severity]
 "rust.params" = "medium"                 # low | medium | high | critical
 
+[detectors.languages.python]             # per-language overrides, keyed by plugin id
+cyclomatic_threshold = 15                # also: length_threshold, param_threshold,
+file_size_threshold = 600                #       nesting_threshold, file_size_severity_at
+
 [detectors.file_size]
 threshold = 400
 severity_at = 600

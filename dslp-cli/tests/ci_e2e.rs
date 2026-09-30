@@ -166,3 +166,35 @@ fn inline_ignore_becomes_wontfix_and_still_counts_for_strict() {
     );
     assert!(score["lenient"].as_f64() > open_score["lenient"].as_f64());
 }
+
+#[test]
+fn per_language_thresholds_override_globals_and_typos_are_rejected() {
+    let dir = fresh_dir("cfg-lang");
+    std::fs::write(dir.join("a.rs"), complex_rs("helper")).unwrap();
+    std::fs::create_dir_all(dir.join(".dslp")).unwrap();
+    let cfg = |body: &str| std::fs::write(dir.join(".dslp/config.toml"), body).unwrap();
+
+    cfg("[detectors.languages.rust]\ncyclomatic_threshold = 99\n");
+    run(&["scan"], &dir);
+    let v: serde_json::Value =
+        serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
+    assert!(
+        v.as_array().unwrap().is_empty(),
+        "rust override should silence complexity: {v}"
+    );
+
+    cfg("[detectors.languages.python]\ncyclomatic_threshold = 99\n");
+    run(&["scan"], &dir);
+    let v: serde_json::Value =
+        serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
+    assert_eq!(
+        v.as_array().unwrap().len(),
+        1,
+        "python override must not affect rust"
+    );
+
+    cfg("[detectors.languages.rsut]\ncyclomatic_threshold = 99\n");
+    let out = run(&["scan"], &dir);
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("rsut"));
+}

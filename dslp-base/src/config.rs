@@ -28,9 +28,61 @@ pub struct DetectorsConfig {
     pub disable: Vec<String>,
     /// Per-detector severity overrides, e.g. `"rust.params" = "medium"`.
     pub severity: BTreeMap<String, Severity>,
+    /// Per-language threshold overrides, keyed by plugin id
+    /// (`[detectors.languages.python]`).
+    pub languages: BTreeMap<String, LanguageOverride>,
     pub file_size: FileSizeConfig,
     pub complexity: ComplexityConfig,
     pub dead_pub: DeadPubConfig,
+}
+
+/// Thresholds a single language overrides; unset fields fall back to the
+/// global `[detectors.file_size]` / `[detectors.complexity]` values.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LanguageOverride {
+    pub file_size_threshold: Option<u32>,
+    pub file_size_severity_at: Option<u32>,
+    pub cyclomatic_threshold: Option<u32>,
+    pub length_threshold: Option<u32>,
+    pub param_threshold: Option<u32>,
+    pub nesting_threshold: Option<u32>,
+}
+
+impl DetectorsConfig {
+    /// File-size settings for plugin `lang`, with its overrides applied.
+    pub fn file_size_for(&self, lang: &str) -> FileSizeConfig {
+        let base = &self.file_size;
+        let over = self.languages.get(lang);
+        FileSizeConfig {
+            threshold: over
+                .and_then(|o| o.file_size_threshold)
+                .unwrap_or(base.threshold),
+            severity_at: over
+                .and_then(|o| o.file_size_severity_at)
+                .unwrap_or(base.severity_at),
+        }
+    }
+
+    /// Complexity settings for plugin `lang`, with its overrides applied.
+    pub fn complexity_for(&self, lang: &str) -> ComplexityConfig {
+        let base = &self.complexity;
+        let over = self.languages.get(lang);
+        ComplexityConfig {
+            cyclomatic_threshold: over
+                .and_then(|o| o.cyclomatic_threshold)
+                .unwrap_or(base.cyclomatic_threshold),
+            length_threshold: over
+                .and_then(|o| o.length_threshold)
+                .unwrap_or(base.length_threshold),
+            param_threshold: over
+                .and_then(|o| o.param_threshold)
+                .unwrap_or(base.param_threshold),
+            nesting_threshold: over
+                .and_then(|o| o.nesting_threshold)
+                .unwrap_or(base.nesting_threshold),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -140,6 +192,24 @@ mod tests {
         let cfg = load_config(&dir).unwrap();
         assert_eq!(cfg.detectors.disable, ["ts.*"]);
         assert_eq!(cfg.detectors.severity["rust.params"], Severity::High);
+    }
+
+    #[test]
+    fn language_overrides_fall_back_to_globals() {
+        let dir = tmpdir("lang-overrides");
+        fs::create_dir_all(dir.join(".dslp")).unwrap();
+        fs::write(
+            dir.join(".dslp/config.toml"),
+            "[detectors.complexity]\ncyclomatic_threshold = 12\n[detectors.languages.python]\ncyclomatic_threshold = 20\nfile_size_threshold = 900\n",
+        )
+        .unwrap();
+        let d = load_config(&dir).unwrap().detectors;
+        assert_eq!(d.complexity_for("python").cyclomatic_threshold, 20);
+        assert_eq!(d.complexity_for("python").length_threshold, 50);
+        assert_eq!(d.complexity_for("go").cyclomatic_threshold, 12);
+        assert_eq!(d.file_size_for("python").threshold, 900);
+        assert_eq!(d.file_size_for("python").severity_at, 600);
+        assert_eq!(d.file_size_for("go").threshold, 400);
     }
 
     #[test]
