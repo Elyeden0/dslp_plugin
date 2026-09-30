@@ -100,3 +100,21 @@ fn config_can_disable_detectors_and_override_severity() {
     let v: serde_json::Value = serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
     assert!(v.as_array().unwrap().is_empty());
 }
+
+#[test]
+fn inline_ignore_becomes_wontfix_and_still_counts_for_strict() {
+    let dir = fresh_dir("wf-inline");
+    let src = complex_rs("helper");
+    std::fs::write(dir.join("a.rs"), &src).unwrap();
+    run(&["scan"], &dir);
+    let open_score: serde_json::Value = serde_json::from_slice(&run(&["score", "--json"], &dir).stdout).unwrap();
+
+    std::fs::write(dir.join("a.rs"), format!("// dslp-ignore rust.complexity: generated tables\n{src}")).unwrap();
+    run(&["scan"], &dir);
+    let backlog: serde_json::Value = serde_json::from_slice(&run(&["backlog", "--json"], &dir).stdout).unwrap();
+    assert_eq!(backlog.as_array().unwrap().len(), 1);
+    assert_eq!(backlog[0]["status"]["reason"], "inline: generated tables");
+    let score: serde_json::Value = serde_json::from_slice(&run(&["score", "--json"], &dir).stdout).unwrap();
+    assert_eq!(score["strict"], open_score["strict"], "an inline ignore must not raise the strict score");
+    assert!(score["lenient"].as_f64() > open_score["lenient"].as_f64());
+}

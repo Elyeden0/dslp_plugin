@@ -78,7 +78,18 @@ pub fn run_scan(
 
     let now = Utc::now();
     let prev = load(project_root, lang)?;
-    let issues = merge_issues(prev.as_ref(), all_findings, now);
+    let sources: HashMap<PathBuf, &str> = handles_per_plugin
+        .iter()
+        .flatten()
+        .map(|h| (h.path.clone(), h.source.as_str()))
+        .collect();
+    let ignored = crate::inline::ignored(&all_findings, &sources);
+    let mut issues = merge_issues(prev.as_ref(), all_findings, now);
+    for issue in issues.iter_mut().filter(|i| i.is_open()) {
+        if let Some(reason) = ignored.get(&issue.fingerprint) {
+            issue.suppress(reason.clone(), now);
+        }
+    }
     let delta = delta(prev.as_ref(), &issues);
     let score = score_issues(&issues, total_loc);
     let state = State {

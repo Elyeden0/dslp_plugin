@@ -4,7 +4,7 @@
 use dslp_base::DetectorsConfig;
 use dslp_core::Finding;
 
-fn matches(pattern: &str, detector: &str) -> bool {
+pub(crate) fn matches(pattern: &str, detector: &str) -> bool {
     match pattern.strip_suffix('*') {
         Some(prefix) => detector.starts_with(prefix),
         None => detector == pattern,

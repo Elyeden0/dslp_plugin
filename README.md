@@ -61,6 +61,15 @@ dslp scan --lang go --path /path/to/monorepo
 dslp findings --lang go --path /path/to/monorepo
 ```
 
+Dismiss an issue in the code itself with a comment on its first line, or the line above (any comment syntax):
+
+```rust
+// dslp-ignore rust.complexity: generated dispatch table
+fn dispatch(op: Op) -> u32 { ... }
+```
+
+Several ids may be listed (`dslp-ignore rust.params, rust.length`) and a family can end in `.*`. Like `suppress`, an inline ignore becomes a **wontfix** — it shows in `dslp backlog` and still counts toward the strict score. Deleting the comment later does not reopen the issue; use `dslp reopen`.
+
 Fingerprints accept a unique prefix (the 8-char id shown in `findings`/`next`).
 
 Every command supports `--json` for machine-readable output suitable for piping into an agent (`badge` has no `--json` flag — its only output is the badge payload itself):

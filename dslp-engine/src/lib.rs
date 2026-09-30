@@ -3,6 +3,7 @@
 mod backlog;
 mod badge;
 mod delta;
+mod inline;
 mod ops;
 mod overrides;
 mod plan;
