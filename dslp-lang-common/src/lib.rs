@@ -125,6 +125,66 @@ pub fn file_size(
     )]
 }
 
+/// Name of a C/C++ `function_definition`, seen through pointer, reference,
+/// parenthesized and qualified declarators (`Foo::bar`, operators, destructors).
+pub fn c_family_function_name(fn_node: Node, bytes: &[u8]) -> Option<String> {
+    let decl = fn_node.child_by_field_name("declarator")?;
+    extract_declarator_identifier(decl, bytes)
+}
+
+fn extract_declarator_identifier(node: Node, bytes: &[u8]) -> Option<String> {
+    if let Some(direct) = direct_identifier(node, bytes) {
+        return Some(direct);
+    }
+    if is_wrapping_declarator(node.kind()) {
+        return extract_declarator_identifier(node.child_by_field_name("declarator")?, bytes);
+    }
+    if is_compound_name(node.kind()) {
+        return last_child_identifier(node, bytes);
+    }
+    first_descendant_identifier(node, bytes)
+}
+
+fn direct_identifier(node: Node, bytes: &[u8]) -> Option<String> {
+    matches!(node.kind(), "identifier" | "field_identifier")
+        .then(|| node.utf8_text(bytes).ok().map(String::from))
+        .flatten()
+}
+
+fn is_wrapping_declarator(kind: &str) -> bool {
+    matches!(
+        kind,
+        "function_declarator"
+            | "pointer_declarator"
+            | "parenthesized_declarator"
+            | "reference_declarator"
+            | "rvalue_reference_declarator"
+    )
+}
+
+fn is_compound_name(kind: &str) -> bool {
+    matches!(kind, "qualified_identifier" | "operator_name" | "destructor_name")
+}
+
+fn last_child_identifier(node: Node, bytes: &[u8]) -> Option<String> {
+    let mut cursor = node.walk();
+    let last = node.named_children(&mut cursor).last()?;
+    match last.kind() {
+        "identifier" | "field_identifier" => last.utf8_text(bytes).ok().map(String::from),
+        _ => extract_declarator_identifier(last, bytes),
+    }
+}
+
+fn first_descendant_identifier(node: Node, bytes: &[u8]) -> Option<String> {
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        if let Some(s) = extract_declarator_identifier(child, bytes) {
+            return Some(s);
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,64 +253,4 @@ mod tests {
         let func = tree.root_node().child(0).unwrap();
         assert_eq!(node_length_lines(func), 3);
     }
-}
-
-/// Name of a C/C++ `function_definition`, seen through pointer, reference,
-/// parenthesized and qualified declarators (`Foo::bar`, operators, destructors).
-pub fn c_family_function_name(fn_node: Node, bytes: &[u8]) -> Option<String> {
-    let decl = fn_node.child_by_field_name("declarator")?;
-    extract_declarator_identifier(decl, bytes)
-}
-
-fn extract_declarator_identifier(node: Node, bytes: &[u8]) -> Option<String> {
-    if let Some(direct) = direct_identifier(node, bytes) {
-        return Some(direct);
-    }
-    if is_wrapping_declarator(node.kind()) {
-        return extract_declarator_identifier(node.child_by_field_name("declarator")?, bytes);
-    }
-    if is_compound_name(node.kind()) {
-        return last_child_identifier(node, bytes);
-    }
-    first_descendant_identifier(node, bytes)
-}
-
-fn direct_identifier(node: Node, bytes: &[u8]) -> Option<String> {
-    matches!(node.kind(), "identifier" | "field_identifier")
-        .then(|| node.utf8_text(bytes).ok().map(String::from))
-        .flatten()
-}
-
-fn is_wrapping_declarator(kind: &str) -> bool {
-    matches!(
-        kind,
-        "function_declarator"
-            | "pointer_declarator"
-            | "parenthesized_declarator"
-            | "reference_declarator"
-            | "rvalue_reference_declarator"
-    )
-}
-
-fn is_compound_name(kind: &str) -> bool {
-    matches!(kind, "qualified_identifier" | "operator_name" | "destructor_name")
-}
-
-fn last_child_identifier(node: Node, bytes: &[u8]) -> Option<String> {
-    let mut cursor = node.walk();
-    let last = node.named_children(&mut cursor).last()?;
-    match last.kind() {
-        "identifier" | "field_identifier" => last.utf8_text(bytes).ok().map(String::from),
-        _ => extract_declarator_identifier(last, bytes),
-    }
-}
-
-fn first_descendant_identifier(node: Node, bytes: &[u8]) -> Option<String> {
-    let mut cursor = node.walk();
-    for child in node.named_children(&mut cursor) {
-        if let Some(s) = extract_declarator_identifier(child, bytes) {
-            return Some(s);
-        }
-    }
-    None
 }
