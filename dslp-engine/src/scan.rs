@@ -1,8 +1,10 @@
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use chrono::Utc;
 use dslp_base::{discover_files, load_config, Config};
-use dslp_core::{FileHandle, LanguagePlugin};
+use dslp_core::{FileHandle, Finding, LanguagePlugin};
+use rayon::prelude::*;
 
 use crate::scoring::score_issues;
 use crate::state::{load, merge_issues, save, State, STATE_VERSION};
@@ -29,26 +31,45 @@ pub fn run_scan(
     let config = load_config(project_root)?;
     let cfg_value = serde_json::to_value(&config)?;
 
-    let mut all_findings = Vec::new();
+    // Walk the tree once for every extension any plugin claims, and read each
+    // file once — several plugins (ts, react, nextjs, nuxt) share extensions.
+    let all_exts: Vec<&str> = plugins.iter().flat_map(|p| p.extensions().iter().copied()).collect();
+    let mut sources: HashMap<PathBuf, Option<String>> = HashMap::new();
+    let mut handles_per_plugin: Vec<Vec<FileHandle>> = Vec::new();
+    let discovered = discover_files(project_root, &all_exts, &config.scan.exclude);
     let mut total_loc: u64 = 0;
     let mut files_scanned = 0usize;
     for plugin in plugins {
-        let files = discover_files(project_root, plugin.extensions(), &config.scan.exclude);
-        let handles: Vec<FileHandle> = files
-            .into_iter()
-            .filter_map(|p| {
-                let source = std::fs::read_to_string(&p).ok()?;
-                total_loc += source.lines().count() as u64;
-                Some(FileHandle { path: p, source })
-            })
-            .collect();
-        files_scanned += handles.len();
-        let ctx = dslp_core::ScanContext {
-            project_root,
-            config: &cfg_value,
-        };
-        all_findings.extend(plugin.scan(&ctx, &handles));
+        let mut handles = Vec::new();
+        for abs in discovered.iter().filter(|p| claims(plugin.extensions(), p)) {
+            let source = sources.entry(abs.clone()).or_insert_with(|| {
+                let text = std::fs::read_to_string(abs).ok();
+                if let Some(t) = &text {
+                    total_loc += t.lines().count() as u64;
+                    files_scanned += 1;
+                }
+                text
+            });
+            if let Some(source) = source {
+                // Plugins see (and findings record) paths relative to the
+                // project root, so `scan .` and `scan /abs/path` agree.
+                let rel = abs.strip_prefix(project_root).unwrap_or(abs).to_path_buf();
+                handles.push(FileHandle { path: rel, source: source.clone() });
+            }
+        }
+        handles_per_plugin.push(handles);
     }
+
+    let cfg_ref = &cfg_value;
+    let per_plugin: Vec<Vec<Finding>> = plugins
+        .par_iter()
+        .zip(handles_per_plugin.par_iter())
+        .map(|(plugin, handles)| {
+            let ctx = dslp_core::ScanContext { project_root, config: cfg_ref };
+            plugin.scan(&ctx, handles)
+        })
+        .collect();
+    let all_findings = disambiguate(per_plugin.into_iter().flatten().collect());
 
     let now = Utc::now();
     let prev = load(project_root, lang)?;
@@ -67,4 +88,42 @@ pub fn run_scan(
         total_loc,
         files_scanned,
     })
+}
+
+fn claims(extensions: &[&str], path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|ext| extensions.iter().any(|e| e.eq_ignore_ascii_case(ext)))
+}
+
+/// Give findings that share a fingerprint (e.g. two same-named functions in
+/// one file) distinct, order-stable fingerprints.
+fn disambiguate(findings: Vec<Finding>) -> Vec<Finding> {
+    let mut seen: HashMap<String, usize> = HashMap::new();
+    findings
+        .into_iter()
+        .map(|f| {
+            let n = seen.entry(f.fingerprint.clone()).or_insert(0);
+            let out = f.with_occurrence(*n);
+            *n += 1;
+            out
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dslp_core::Severity;
+
+    #[test]
+    fn disambiguate_makes_duplicate_fingerprints_unique() {
+        let mk = || Finding::new("d", Severity::Low, PathBuf::from("a.rs"), None, "m", None, "same");
+        let out = disambiguate(vec![mk(), mk(), mk()]);
+        let mut fps: Vec<_> = out.iter().map(|f| f.fingerprint.clone()).collect();
+        fps.sort();
+        fps.dedup();
+        assert_eq!(fps.len(), 3);
+        assert_eq!(out[0].fingerprint, mk().fingerprint);
+    }
 }

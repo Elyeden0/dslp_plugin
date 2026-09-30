@@ -37,3 +37,24 @@ fn wontfix_survives_line_shift_and_metric_drift() {
     assert!(json(&run(&["findings", "--json"], &dir)).as_array().unwrap().is_empty());
 }
 
+#[test]
+fn path_spelling_does_not_split_history() {
+    let dir = fresh_dir("stab-path");
+    std::fs::write(dir.join("a.rs"), complex_rs()).unwrap();
+    run(&["scan", "."], &dir);
+    run(&["scan", dir.to_str().unwrap()], &dir);
+    let issues = json(&run(&["findings", "--json"], &dir));
+    assert_eq!(issues.as_array().unwrap().len(), 1);
+    assert_eq!(issues[0]["file"], "a.rs");
+}
+
+#[test]
+fn shared_extensions_count_loc_once() {
+    let dir = fresh_dir("stab-loc");
+    std::fs::write(dir.join("app.ts"), "export const x = 1;\n".repeat(10)).unwrap();
+    std::fs::write(dir.join("package.json"), r#"{"dependencies":{"react":"1","next":"1","nuxt":"1"}}"#).unwrap();
+    let v = json(&run(&["scan", "--json"], &dir));
+    assert_eq!(v["total_loc"], 10);
+    assert_eq!(v["files_scanned"], 1);
+}
+
