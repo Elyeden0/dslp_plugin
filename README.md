@@ -2,9 +2,18 @@
 
 A Rust port of the analyse → score → "what to fix" core of [desloppify](https://github.com/peteromallet/desloppify). Scans your codebase, scores it 0-100, and tells your AI agent (or you) what to fix next.
 
-This is **v0.13 in progress**: Rust + TypeScript/JavaScript + Go + Python + C + C++ language support plus React, Next.js, and Nuxt framework-aware detectors that auto-activate on the right projects, composite score 0-100, persistent state, a resolve/suppress workflow loop, per-language monorepo scoping, CI gating (`--fail-under`, `--fail-on-new`, `--since`, SARIF), inline `dslp-ignore` comments, and slop-focused detectors (duplicate blocks, commented-out code, swallowed errors, leftover debugging, long parameter lists, deep nesting). See [docs/superpowers/specs/2026-05-01-rust-port-design.md](docs/superpowers/specs/2026-05-01-rust-port-design.md) and [docs/superpowers/specs/2026-05-29-workflow-loop-design.md](docs/superpowers/specs/2026-05-29-workflow-loop-design.md) for the full design and what's deliberately deferred.
+**v0.13, in progress.** `dslp` analyses a project with tree-sitter, turns what it finds into tracked *issues*, and keeps a 0–100 score you can gate CI on.
+
+- **Languages:** Rust, TypeScript/JavaScript, Go, Python, C, C++, plus React, Next.js and Nuxt detectors that switch on automatically.
+- **Slop-focused checks:** duplicated code, commented-out code, swallowed errors, leftover debugging, long parameter lists, deep nesting, and more (see [What it detects](#what-it-detects)).
+- **Workflow:** issues persist between scans; you resolve, suppress (or `dslp-ignore` in code) and reopen them, and a *lenient vs strict* score keeps dismissals honest.
+- **CI:** `--fail-under`, `--fail-on-new`, `--since <rev>`, SARIF output, a shields.io badge, and per-language scoping for monorepos.
+
+Design docs: [rust-port design](docs/superpowers/specs/2026-05-01-rust-port-design.md) and [workflow loop design](docs/superpowers/specs/2026-05-29-workflow-loop-design.md) (including what's deliberately deferred).
 
 ## Install
+
+Requires a Rust toolchain (`rust-version = 1.78` in `Cargo.toml`).
 
 ```bash
 git clone <this-repo> noAIslop
@@ -14,7 +23,22 @@ cargo install --path dslp-cli
 
 After install, the binary is `dslp`.
 
+## Quick start
+
+```bash
+dslp init                      # once: starter .dslp/config.toml, and ignores state files in .gitignore
+dslp scan                      # analyse; prints the score and what changed since last time
+dslp next                      # the single most important open issue, with how to fix it
+# ...fix it, then:
+dslp resolve <fingerprint>     # claim it's fixed (the next scan verifies the claim)
+dslp scan                      # repeat
+```
+
+Can't or won't fix one? `dslp suppress <fingerprint> --reason "..."` (or a `dslp-ignore` comment in the code) dismisses it as a *wontfix*. That still counts against the **strict** score, so it can't be used to game the number.
+
 ## Usage
+
+Every command takes the project directory either as a positional argument (`dslp scan ./project`) or as `--path ./project` (default: the current directory). Giving both is an error. The examples below use `--path`.
 
 ```bash
 # Once per project: starter .dslp/config.toml + ignore .dslp/ in .gitignore
@@ -65,7 +89,7 @@ dslp scan --lang go --path /path/to/monorepo
 dslp findings --lang go --path /path/to/monorepo
 ```
 
-Dismiss an issue in the code itself with a comment on its first line, or the line above (any comment syntax):
+Dismiss an issue in the code itself with a `dslp-ignore` comment on the line where the issue starts, or on the line directly above it (any comment syntax):
 
 ```rust
 // dslp-ignore rust.complexity: generated dispatch table
@@ -76,7 +100,7 @@ Several ids may be listed (`dslp-ignore rust.params, rust.length`) and a family 
 
 Fingerprints accept a unique prefix (the 8-char id shown in `findings`/`next`).
 
-Every command supports `--json` for machine-readable output suitable for piping into an agent (`badge` has no `--json` flag — its only output is the badge payload itself):
+Every command except `init` and `badge` supports `--json` for machine-readable output suitable for piping into an agent (`badge` already prints JSON — the badge payload; `findings` can also print `--sarif`):
 
 ```bash
 dslp scan --json --path .
@@ -89,7 +113,15 @@ dslp backlog --json --path .   # array of wontfix Issues
 
 `--fail-on-new` compares against the previous scan's state, so it only has something to compare to where `.dslp/` persists between runs (e.g. a cached CI directory); the first scan never fails it. `--since <rev>` still analyses the whole project (cross-file detectors like `rust.dead-pub-*`, `ts.dead-export` and `dup.block` need the full corpus) but only *reports* on files that differ from `<rev>` in the working tree, plus untracked files; issues in every other file are carried over exactly as they were. Findings in unchanged files that a change elsewhere caused are not seen until the next full scan.
 
-Add `.dslp/` to your `.gitignore`. State persists across runs so progress carries over.
+State persists in `.dslp/` across runs so progress carries over. Commit `.dslp/config.toml` to share settings with your team, but keep the state files (`.dslp/state*.json`) out of git — `dslp init` sets that up.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success. |
+| `1` | A check said "no": a `scan` gate failed (`--fail-under` / `--fail-on-new`), there is no scan yet, or `next` found no open issues. |
+| `2` | Error or bad usage (unknown `--lang`, unreadable config, bad `--since` revision, ...). |
 
 ## What it detects
 
@@ -101,7 +133,7 @@ Add `.dslp/` to your `.gitignore`. State persists across runs so progress carrie
 | `rust.complexity` | Functions with cyclomatic complexity ≥ 10 (counts `if`, `match` arms, loops, `?`, `&&`, `\|\|`). |
 | `rust.length` | Functions ≥ 50 lines. Low severity. |
 | `rust.params` | Functions with ≥ 6 parameters (the `self` receiver is free). Low severity. |
-| `rust.nesting` | Functions nesting `if` / `match` / loops 5+ levels deep (`else if` / `elif` chains do not add depth). Low severity. |
+| `rust.nesting` | Functions nesting `if` / `match` / loops 5+ levels deep (`else if` chains do not add depth). Low severity. |
 | `rust.leftover-debug` | `dbg!` left in code. Low severity. |
 | `rust.unfinished` | `todo!()` / `unimplemented!()`, which panic at runtime. Medium severity. |
 | `rust.unwrap-density` | A file with ≥ 10 `.unwrap()` / `.expect()` calls outside `#[test]` / `mod tests` / `tests/`. One finding per file. Low severity. |
@@ -115,7 +147,7 @@ Add `.dslp/` to your `.gitignore`. State persists across runs so progress carrie
 | `ts.complexity` | Functions / arrow functions / methods with cyclomatic complexity ≥ 10. Counts `if`, `for`, `while`, `do`, `switch case`, `?:`, `catch`, `&&`, `\|\|`, `??`. |
 | `ts.length` | Functions ≥ 50 lines. Low severity. |
 | `ts.params` | Functions with ≥ 6 parameters. Low severity. |
-| `ts.nesting` | Functions nesting `if` / `switch` / `try` / loops 5+ levels deep (`else if` / `elif` chains do not add depth). Low severity. |
+| `ts.nesting` | Functions nesting `if` / `switch` / `try` / loops 5+ levels deep (`else if` chains do not add depth). Low severity. |
 | `ts.empty-catch` | A `catch` block with no statements at all (a comment inside counts as a deliberate ignore). Medium severity. |
 | `ts.leftover-debug` | `console.log` / `console.debug` / `console.trace` calls and `debugger` statements. Low severity. |
 | `ts.any-density` | A file with ≥ 5 explicit `any` types. One finding per file. Low severity. |
@@ -129,7 +161,7 @@ Add `.dslp/` to your `.gitignore`. State persists across runs so progress carrie
 | `go.complexity` | Functions and methods with cyclomatic complexity ≥ 10. Counts `if`, `for`, switch `expression_case` / `default_case`, `select` `communication_case`, type-switch `type_case`, plus `&&` / `\|\|`. |
 | `go.length` | Functions ≥ 50 lines. Low severity. |
 | `go.params` | Functions with ≥ 6 parameters (`a, b int` counts as two). Low severity. |
-| `go.nesting` | Functions nesting `if` / `switch` / `select` / loops 5+ levels deep (`else if` / `elif` chains do not add depth). Low severity. |
+| `go.nesting` | Functions nesting `if` / `switch` / `select` / loops 5+ levels deep (`else if` chains do not add depth). Low severity. |
 | `go.ignored-error` | `_ = f()` / `_, _ = f()`: a call whose result is assigned only to the blank identifier, discarding a possible error. Medium severity. |
 
 ### Python (`.py`, `.pyi`)
@@ -140,7 +172,7 @@ Add `.dslp/` to your `.gitignore`. State persists across runs so progress carrie
 | `python.complexity` | Functions / methods (including nested defs) with cyclomatic complexity ≥ 10. Counts `if`, `elif`, `for`, `while`, `except`, `match` `case`, conditional expressions (`x if c else y`), plus `and` / `or`. |
 | `python.length` | Functions ≥ 50 lines. Low severity. |
 | `python.params` | Functions with ≥ 6 parameters (`self`/`cls` are free). Low severity. |
-| `python.nesting` | Functions nesting `if` / `try` / `with` / `match` / loops 5+ levels deep (`else if` / `elif` chains do not add depth). Low severity. |
+| `python.nesting` | Functions nesting `if` / `try` / `with` / `match` / loops 5+ levels deep (`elif` chains do not add depth). Low severity. |
 | `python.silent-except` | An `except` block containing only `pass` / `...`. Medium severity. |
 | `python.leftover-debug` | `breakpoint()`, `pdb.set_trace()`, `ipdb.set_trace()`. Low severity. |
 
@@ -204,7 +236,7 @@ This is **net-new design** — desloppify ships no Nuxt support, so we couldn't 
 
 ## Configuration
 
-Drop a `.dslp/config.toml` in your project root:
+Create it with `dslp init` (it writes every default), or add a `.dslp/config.toml` in your project root by hand. The example below shows every option; values here are illustrative, not all defaults (e.g. the `disable` and `ignore_paths` lists are empty by default):
 
 ```toml
 [scan]
@@ -241,7 +273,7 @@ nesting_threshold = 5
 ignore_paths = ["src/lib.rs"]
 ```
 
-Every key is optional; missing values fall back to defaults. Unknown keys are an error, so a typo like `treshold` is reported rather than silently ignored. `exclude` entries are path prefixes matched per path component (`"vendor"` and `"vendor/"` exclude `vendor/x.rs` but not `vendor2/x.rs`).
+Every key is optional; missing values fall back to defaults. Unknown keys are an error, so a typo like `treshold` is reported rather than silently ignored. `dead_pub.ignore_paths` entries are substring matches on the file path. `exclude` entries are path prefixes matched per path component (`"vendor"` and `"vendor/"` exclude `vendor/x.rs` but not `vendor2/x.rs`).
 
 ## Scoring
 
@@ -249,7 +281,7 @@ Two scores, both 0 (worst) to 100 (perfect), from the same formula:
 
 ```
 penalty = sum of severity weights (Low=1, Medium=3, High=8, Critical=20)
-size    = max(1, total_loc / 1000)
+size    = max(1, total_loc / 1000)      # integer division: thousands of lines, at least 1
 score   = 100 * exp(-penalty / (size * 25))
 ```
 
@@ -273,7 +305,7 @@ State persists in `.dslp/state.json` (schema v3). State from older versions is d
 
 ## Monorepo support (`--lang`)
 
-Every command accepts `--lang <id>` (`rust`, `typescript`, `go`, `python`, `c`, `cpp`, `react`, `nextjs`, `nuxt`, `duplicates`) to scope it to one plugin. A scoped `scan` only runs that plugin and persists to its own `.dslp/state-<lang>.json`, completely independent of the shared `.dslp/state.json` — so a monorepo with e.g. a Go backend and a TypeScript frontend under the same `--path` can track and score each language separately (`dslp scan --lang go`, `dslp scan --lang typescript`) without one language's fixes or regressions touching the other's history. Omit `--lang` to scan/score everything under `--path` together, as before. `--lang` with an unrecognized id fails fast, listing the valid ids.
+Every command accepts `--lang <id>` (`rust`, `typescript`, `go`, `python`, `c`, `cpp`, `react`, `nextjs`, `nuxt`, `duplicates`) to scope it to one plugin. (The duplicate detector is the plugin `duplicates`, but its findings are ids `dup.*`.) A scoped `scan` only runs that plugin and persists to its own `.dslp/state-<lang>.json`, completely independent of the shared `.dslp/state.json` — so a monorepo with e.g. a Go backend and a TypeScript frontend under the same `--path` can track and score each language separately (`dslp scan --lang go`, `dslp scan --lang typescript`) without one language's fixes or regressions touching the other's history. Omit `--lang` to scan/score everything under `--path` together, as before. `--lang` with an unrecognized id fails fast, listing the valid ids.
 
 ## Architecture
 
@@ -281,8 +313,8 @@ Cargo workspace:
 
 - `dslp-core` — domain types (`Issue`, `Finding`, `Score`, `LanguagePlugin` trait). No I/O, no parsers.
 - `dslp-base` — file discovery (gitignore-aware), config loading, tree-sitter glue.
-- `dslp-engine` — scan/score/queue/plan/backlog/badge/state pipeline.
-- `dslp-lang-common` — shared detector primitives (`count_lines`, `cyclomatic`, `span_of`, `node_length_lines`, `finding_at_node`, `file_size`) used by every language plugin.
+- `dslp-engine` — scan pipeline (single file walk, parallel plugins), state merge, scoring, queue/plan/backlog/badge, scan deltas, config overrides, inline `dslp-ignore`, SARIF.
+- `dslp-lang-common` — shared detector primitives used by every language plugin: line/length/complexity helpers, the file-size detector, parameter-count and nesting-depth helpers, C-family declarator names, and the comment-slop detectors.
 - `dslp-lang-rust` — Rust language plugin.
 - `dslp-lang-ts` — TypeScript / JavaScript language plugin.
 - `dslp-lang-go` — Go language plugin.
@@ -312,12 +344,12 @@ In order:
 11. ✅ v0.10 — Triage workflow: `plan` (open issues grouped by file, ranked by total severity penalty) and `backlog` (the wontfix list, previously invisible outside raw state)
 12. ✅ v0.11 — Scorecard badge: `dslp badge` emits a shields.io endpoint-badge payload, strict score by default
 13. ✅ v0.12 — `--lang` monorepo support: every command can scope to one plugin, tracked in its own `.dslp/state-<lang>.json`
-14. ✅ v0.13 — CI and slop: change summary per scan, `--fail-under` / `--fail-on-new` / `--since`, SARIF output, `show` / `reopen` / `init`, `dslp-ignore` comments, config `disable` / `severity` / per-language thresholds, and the params / nesting / empty-catch / leftover-debug / unwrap- and any-density / ignored-error / commented-code / obvious-comment / dead-export / duplicate-block detectors
+14. ✅ v0.13 — CI and slop: scan change summary, `--fail-under` / `--fail-on-new` / `--since`, SARIF, `show` / `reopen` / `init`, `dslp-ignore` comments, richer config, and a batch of new detectors (see [What it detects](#what-it-detects))
 15. Later: LLM-backed subjective review; autofix.
 
 ## Performance
 
-A scan walks the tree once, reads each file once, and runs the plugins in parallel; parsing is tree-sitter with no ASTs round-tripped to disk. Measure it yourself:
+A scan walks the tree once, reads each file once, and runs the plugins in parallel; parsing is tree-sitter with no ASTs round-tripped to disk. As a reference point, this workspace (~11k lines) scans in about 0.4 s in a release build on the author's machine. Measure your own:
 
 ```bash
 cargo build --release --bin dslp
@@ -330,7 +362,7 @@ time ./target/release/dslp scan --path .
 cargo test --workspace
 ```
 
-273 tests as of v0.13, roughly a third of them end-to-end tests that drive the real binary (`dslp-cli/tests/`). Every detector has unit tests for the firing case and the near-miss it must not flag, and detectors that key findings by name or scope have a fingerprint-stability test (the finding keeps its identity when code above it moves). The engine tests cover the merge truth table, lenient-vs-strict scoring, scoped (`--since`) merging, inline ignores, overrides and SARIF mapping.
+273 tests as of v0.13: unit tests next to the code they cover (detectors, engine merge/scoring, config) and 50 end-to-end tests in `dslp-cli/tests/` that run the real binary against temporary projects.
 
 ## License
 
