@@ -2,8 +2,9 @@ use std::path::{Path, PathBuf};
 
 use ignore::WalkBuilder;
 
-/// Walk `root` honoring `.gitignore`, plus any user-supplied `exclude` globs
-/// (matched against the path relative to `root`). Returns files whose extension
+/// Walk `root` honoring `.gitignore`, plus any user-supplied `exclude` paths
+/// (directory or file prefixes, matched component-wise against the path
+/// relative to `root`, so `src` excludes `src/a.rs` but not `src2/a.rs`). Returns files whose extension
 /// matches one of `extensions` (without the leading dot).
 pub fn discover_files(
     root: &Path,
@@ -40,10 +41,9 @@ fn is_excluded(path: &Path, root: &Path, excludes: &[String]) -> bool {
         Ok(r) => r,
         Err(_) => path,
     };
-    let rel_str = rel.to_string_lossy();
     excludes
         .iter()
-        .any(|prefix| rel_str.starts_with(prefix.as_str()))
+        .any(|prefix| rel.starts_with(prefix.trim_end_matches('/')))
 }
 
 #[cfg(test)]
@@ -105,6 +105,18 @@ mod tests {
         let found = discover_files(&dir, &["rs"], &[]);
         assert_eq!(found.len(), 1);
         assert!(found[0].ends_with("kept.rs"));
+    }
+
+    #[test]
+    fn excludes_match_whole_path_components() {
+        let dir = tmpdir("component-excludes");
+        make_tree(
+            &dir,
+            &[("src/a.rs", "fn a() {}"), ("src2/b.rs", "fn b() {}")],
+        );
+        let found = discover_files(&dir, &["rs"], &["src".to_string()]);
+        assert_eq!(found.len(), 1);
+        assert!(found[0].ends_with("src2/b.rs"));
     }
 
     #[test]
