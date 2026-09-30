@@ -188,6 +188,17 @@ pub fn nesting_finding(
     })
 }
 
+/// The `parameter_list` of a C/C++ `function_definition`, found by following
+/// the declarator chain (through pointer/reference declarators) to the
+/// `function_declarator`.
+pub fn c_family_params(fn_node: Node) -> Option<Node> {
+    let mut decl = fn_node.child_by_field_name("declarator")?;
+    while decl.kind() != "function_declarator" {
+        decl = decl.child_by_field_name("declarator")?;
+    }
+    decl.child_by_field_name("parameters")
+}
+
 /// Declared parameters in a `parameters` node, ignoring comments and Rust's
 /// `self` receiver.
 pub fn param_count(params: Node) -> u32 {

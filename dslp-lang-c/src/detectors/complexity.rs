@@ -10,7 +10,10 @@ use std::path::Path;
 
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
-use dslp_lang_common::{cyclomatic, finding_at_node, node_length_lines};
+use dslp_lang_common::{
+    c_family_params, cyclomatic, finding_at_node, max_nesting, nesting_finding, node_length_lines,
+    param_count, params_finding,
+};
 use tree_sitter::{Node, Tree};
 
 /// C decision-point kinds. Preprocessor conditionals (`#ifdef`/`#if`) are
@@ -26,6 +29,17 @@ const DECISION_KINDS: &[&str] = &[
     "||",
 ];
 
+/// Control-flow nodes that add a nesting level.
+const NESTING_KINDS: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "while_statement",
+    "do_statement",
+    "switch_statement",
+];
+/// Parents whose `if` child is an `else if`, not a deeper level.
+const ELSE_PARENTS: &[&str] = &["else_clause", "if_statement"];
+
 pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Vec<Finding> {
     let mut out = Vec::new();
     let bytes = source.as_bytes();
@@ -36,6 +50,24 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
         if cx >= cfg.cyclomatic_threshold {
             out.push(complexity_finding(path, fn_node, name, cx, cfg));
         }
+        let params = c_family_params(fn_node).map_or(0, param_count);
+        out.extend(params_finding(
+            path,
+            fn_node,
+            "c.params",
+            name,
+            params,
+            cfg.param_threshold,
+        ));
+        let depth = max_nesting(body, NESTING_KINDS, ELSE_PARENTS);
+        out.extend(nesting_finding(
+            path,
+            fn_node,
+            "c.nesting",
+            name,
+            depth,
+            cfg.nesting_threshold,
+        ));
         if length >= cfg.length_threshold {
             out.push(length_finding(path, fn_node, name, length, cfg));
         }
@@ -192,5 +224,24 @@ int *make_buffer(int n) {
             "expected name in message, got: {:?}",
             r
         );
+    }
+
+    #[test]
+    fn many_params_fire_including_through_pointer_return_types() {
+        let src = "int *f(int a, int b, int c) { return 0; }";
+        let r = run(Path::new("a.c"), src, &parse_c(src), &cfg());
+        assert!(r.iter().any(|f| f.detector == "c.params"), "got: {:?}", r);
+        let ok = "int f(void) { return 0; }";
+        assert!(run(Path::new("a.c"), ok, &parse_c(ok), &cfg()).is_empty());
+    }
+
+    #[test]
+    fn deep_nesting_fires_but_else_if_chains_do_not() {
+        let deep = "void f(int x) { if (x) { for (;;) { while (x) { return; } } } }";
+        let r = run(Path::new("a.c"), deep, &parse_c(deep), &cfg());
+        assert!(r.iter().any(|f| f.detector == "c.nesting"), "got: {:?}", r);
+        let flat = "void f(int x) { if (x == 1) {} else if (x == 2) {} else if (x == 3) {} else if (x == 4) {} }";
+        let r = run(Path::new("a.c"), flat, &parse_c(flat), &cfg());
+        assert!(r.iter().all(|f| f.detector != "c.nesting"), "got: {:?}", r);
     }
 }

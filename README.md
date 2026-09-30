@@ -147,6 +147,8 @@ A "dead-export" detector for TS/JS is intentionally not in this slice — the TS
 | `c.file-size` | Files over the threshold. |
 | `c.complexity` | Functions with cyclomatic complexity ≥ 10. Counts `if`, `for`, `while`, `do`, `case`, ternary `?:`, `&&`, `\|\|`. Preprocessor `#ifdef`/`#if` are not counted (conditional compilation is a different axis). |
 | `c.length` | Functions ≥ 50 lines. Low severity. |
+| `c.params` | Functions with ≥ 6 parameters. Low severity. |
+| `c.nesting` | Functions nesting `if` / `switch` / loops 5+ levels deep (`else if` chains do not add depth). Low severity. |
 
 ### C++ (`.cpp`, `.cc`, `.cxx`, `.c++`, `.hpp`, `.hh`, `.hxx`, `.h++`)
 
@@ -155,6 +157,9 @@ A "dead-export" detector for TS/JS is intentionally not in this slice — the TS
 | `cpp.file-size` | Files over the threshold. |
 | `cpp.complexity` | Functions / methods with cyclomatic complexity ≥ 10. Same as C plus `for_range_loop` and `catch_clause`. Handles qualified names (`Foo::bar`), operator overloads, and destructors. |
 | `cpp.length` | Functions ≥ 50 lines. Low severity. |
+| `cpp.params` | Functions and methods with ≥ 6 parameters. Low severity. |
+| `cpp.nesting` | Same as `c.nesting`, plus range-`for` and `try`. Low severity. |
+| `cpp.empty-catch` | A `catch` block with no statements (a comment inside counts as deliberate). Medium severity. |
 
 `.h` files belong to the C plugin (the dominant convention for C headers). C++ headers should use `.hpp` to be picked up by the C++ plugin.
 

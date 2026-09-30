@@ -56,6 +56,7 @@ impl LanguagePlugin for CppPlugin {
                 &tree,
                 &cfg.detectors.complexity_for("cpp"),
             ));
+            findings.extend(detectors::slop::run(&fh.path, &fh.source, &tree));
         }
         findings
     }

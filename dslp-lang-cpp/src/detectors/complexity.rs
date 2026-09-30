@@ -8,7 +8,10 @@ use std::path::Path;
 
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
-use dslp_lang_common::{cyclomatic, finding_at_node, node_length_lines};
+use dslp_lang_common::{
+    c_family_params, cyclomatic, finding_at_node, max_nesting, nesting_finding, node_length_lines,
+    param_count, params_finding,
+};
 use tree_sitter::{Node, Tree};
 
 /// C++ decision-point kinds: C's set plus `for_range_loop` and `catch_clause`.
@@ -25,6 +28,19 @@ const DECISION_KINDS: &[&str] = &[
     "||",
 ];
 
+/// Control-flow nodes that add a nesting level.
+const NESTING_KINDS: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "for_range_loop",
+    "while_statement",
+    "do_statement",
+    "switch_statement",
+    "try_statement",
+];
+/// Parents whose `if` child is an `else if`, not a deeper level.
+const ELSE_PARENTS: &[&str] = &["else_clause", "if_statement"];
+
 pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Vec<Finding> {
     let mut out = Vec::new();
     let bytes = source.as_bytes();
@@ -35,6 +51,24 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
         if cx >= cfg.cyclomatic_threshold {
             out.push(complexity_finding(path, fn_node, name, cx, cfg));
         }
+        let params = c_family_params(fn_node).map_or(0, param_count);
+        out.extend(params_finding(
+            path,
+            fn_node,
+            "cpp.params",
+            name,
+            params,
+            cfg.param_threshold,
+        ));
+        let depth = max_nesting(body, NESTING_KINDS, ELSE_PARENTS);
+        out.extend(nesting_finding(
+            path,
+            fn_node,
+            "cpp.nesting",
+            name,
+            depth,
+            cfg.nesting_threshold,
+        ));
         if length >= cfg.length_threshold {
             out.push(length_finding(path, fn_node, name, length, cfg));
         }
@@ -198,6 +232,31 @@ int sum_positive(const std::vector<int>& xs) {
         assert!(
             r.iter().any(|f| f.detector == "cpp.complexity"),
             "expected range-for to participate in complexity, got: {:?}",
+            r
+        );
+    }
+
+    #[test]
+    fn many_params_fire_for_methods_and_free_functions() {
+        let src = "int Foo::bar(int a, int b, int c) { return 0; }";
+        let r = run(Path::new("a.cpp"), src, &parse_cpp(src), &cfg());
+        assert!(r.iter().any(|f| f.detector == "cpp.params"), "got: {:?}", r);
+    }
+
+    #[test]
+    fn deep_nesting_fires_but_else_if_chains_do_not() {
+        let deep = "void f(int x) { if (x) { for (auto i : v) { while (x) { return; } } } }";
+        let r = run(Path::new("a.cpp"), deep, &parse_cpp(deep), &cfg());
+        assert!(
+            r.iter().any(|f| f.detector == "cpp.nesting"),
+            "got: {:?}",
+            r
+        );
+        let flat = "void f(int x) { if (x == 1) {} else if (x == 2) {} else if (x == 3) {} else if (x == 4) {} }";
+        let r = run(Path::new("a.cpp"), flat, &parse_cpp(flat), &cfg());
+        assert!(
+            r.iter().all(|f| f.detector != "cpp.nesting"),
+            "got: {:?}",
             r
         );
     }
