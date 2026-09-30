@@ -6,6 +6,7 @@ use dslp_base::{discover_files, load_config, Config};
 use dslp_core::{FileHandle, Finding, LanguagePlugin};
 use rayon::prelude::*;
 
+use crate::delta::{delta, ScanDelta};
 use crate::scoring::score_issues;
 use crate::state::{load, merge_issues, save, State, STATE_VERSION};
 
@@ -15,6 +16,7 @@ pub struct ScanReport {
     pub config: Config,
     pub total_loc: u64,
     pub files_scanned: usize,
+    pub delta: ScanDelta,
 }
 
 /// End-to-end scan: discover files, dispatch to plugins, reconcile against
@@ -74,6 +76,7 @@ pub fn run_scan(
     let now = Utc::now();
     let prev = load(project_root, lang)?;
     let issues = merge_issues(prev.as_ref(), all_findings, now);
+    let delta = delta(prev.as_ref(), &issues);
     let score = score_issues(&issues, total_loc);
     let state = State {
         version: STATE_VERSION,
@@ -87,6 +90,7 @@ pub fn run_scan(
         config,
         total_loc,
         files_scanned,
+        delta,
     })
 }
 

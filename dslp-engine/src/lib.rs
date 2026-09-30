@@ -2,6 +2,7 @@
 
 mod backlog;
 mod badge;
+mod delta;
 mod ops;
 mod plan;
 mod queue;
@@ -11,6 +12,7 @@ mod state;
 
 pub use backlog::backlog;
 pub use badge::Badge;
+pub use delta::ScanDelta;
 pub use ops::{reopen, resolve, suppress, OpResult};
 pub use plan::{plan, PlanEntry};
 pub use queue::{next_issue, queue};

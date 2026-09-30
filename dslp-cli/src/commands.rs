@@ -3,7 +3,7 @@ use std::process::ExitCode;
 
 use dslp_core::{Issue, LanguagePlugin};
 
-use crate::output::{print_issue, print_issue_line, print_score_line, severity_label};
+use crate::output::{print_delta_line, print_issue, print_issue_line, print_score_line, severity_label};
 
 pub fn cmd_scan(
     path: &Path,
@@ -24,11 +24,13 @@ pub fn cmd_scan(
             "score": score,
             "open_count": score.open_count,
             "wontfix_count": score.wontfix_count,
+            "delta": report.delta,
         });
         println!("{}", serde_json::to_string_pretty(&payload)?);
     } else {
         println!("Scanned {} file(s), {} LoC", report.files_scanned, report.total_loc);
         print_score_line(score);
+        print_delta_line(&report.delta, score.strict);
     }
     Ok(ExitCode::SUCCESS)
 }

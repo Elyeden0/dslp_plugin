@@ -11,6 +11,15 @@ pub fn print_score_line(s: &Score) {
     }
 }
 
+/// One-line "what this scan changed"; silent on the first scan (no baseline).
+pub fn print_delta_line(d: &dslp_engine::ScanDelta, strict: f64) {
+    let Some(before) = d.previous_strict else { return };
+    println!(
+        "Since last scan: +{} new, {} fixed, {} regressed (strict {:.1} → {:.1})",
+        d.new, d.fixed, d.regressed, before, strict
+    );
+}
+
 pub fn print_issue_line(issue: &Issue) {
     let line = issue.span.map(|s| s.start.line).unwrap_or(0);
     println!(
