@@ -54,6 +54,7 @@ impl LanguagePlugin for TsPlugin {
                 &tree,
                 &cfg.detectors.complexity,
             ));
+            findings.extend(detectors::slop::run(&fh.path, &fh.source, &tree));
         }
         findings
     }

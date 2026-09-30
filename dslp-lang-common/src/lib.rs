@@ -83,6 +83,54 @@ pub fn finding_at_node(
     )
 }
 
+/// Pre-order visit of every node in a subtree.
+pub fn walk<'a>(node: Node<'a>, f: &mut impl FnMut(Node<'a>)) {
+    f(node);
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk(child, f);
+    }
+}
+
+/// Name of the nearest enclosing node whose kind is in `fn_kinds`, or
+/// `<top-level>`. Used to key slop findings on *where* they are rather than
+/// on a line number, so their fingerprints survive edits above them.
+pub fn enclosing_name(node: Node, bytes: &[u8], fn_kinds: &[&str]) -> String {
+    let mut cur = node.parent();
+    while let Some(n) = cur {
+        if fn_kinds.contains(&n.kind()) {
+            let name = n.child_by_field_name("name").and_then(|x| x.utf8_text(bytes).ok());
+            return name.unwrap_or("<anonymous>").to_string();
+        }
+        cur = n.parent();
+    }
+    "<top-level>".to_string()
+}
+
+/// A finding anchored at `node`, keyed by detector + enclosing function.
+#[allow(clippy::too_many_arguments)]
+pub fn item_finding(
+    path: &Path,
+    node: Node,
+    bytes: &[u8],
+    fn_kinds: &[&str],
+    detector: &'static str,
+    severity: Severity,
+    message: &str,
+    fix_hint: &str,
+) -> Finding {
+    let scope = enclosing_name(node, bytes, fn_kinds);
+    finding_at_node(
+        path,
+        node,
+        detector,
+        severity,
+        format!("{message} (in `{scope}`)"),
+        fix_hint,
+        &format!("{detector}:{scope}"),
+    )
+}
+
 /// Declared parameters in a `parameters` node, ignoring comments and Rust's
 /// `self` receiver.
 pub fn param_count(params: Node) -> u32 {

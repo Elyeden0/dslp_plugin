@@ -55,6 +55,7 @@ impl LanguagePlugin for PythonPlugin {
                 &tree,
                 &cfg.detectors.complexity,
             ));
+            findings.extend(detectors::slop::run(&fh.path, &fh.source, &tree));
         }
         findings
     }
