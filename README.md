@@ -99,6 +99,7 @@ dslp backlog --json --path .   # array of wontfix Issues
 | `rust.nesting` | Functions nesting `if` / `match` / loops 5+ levels deep (`else if` / `elif` chains do not add depth). Low severity. |
 | `rust.leftover-debug` | `dbg!` left in code. Low severity. |
 | `rust.unfinished` | `todo!()` / `unimplemented!()`, which panic at runtime. Medium severity. |
+| `rust.unwrap-density` | A file with ≥ 10 `.unwrap()` / `.expect()` calls outside `#[test]` / `mod tests` / `tests/`. One finding per file. Low severity. |
 | `rust.dead-pub-fn` / `-struct` / `-enum` / `-trait` | Public items whose name isn't referenced anywhere in the corpus. Low severity (heuristic — false positives possible on macro-generated or trait-dispatched code). |
 
 ### TypeScript / JavaScript (`.ts`, `.tsx`, `.js`, `.jsx`, `.cjs`, `.mjs`)
@@ -112,6 +113,7 @@ dslp backlog --json --path .   # array of wontfix Issues
 | `ts.nesting` | Functions nesting `if` / `switch` / `try` / loops 5+ levels deep (`else if` / `elif` chains do not add depth). Low severity. |
 | `ts.empty-catch` | A `catch` block with no statements at all (a comment inside counts as a deliberate ignore). Medium severity. |
 | `ts.leftover-debug` | `console.log` / `console.debug` / `console.trace` calls and `debugger` statements. Low severity. |
+| `ts.any-density` | A file with ≥ 5 explicit `any` types. One finding per file. Low severity. |
 
 A "dead-export" detector for TS/JS is intentionally not in this slice — the TS module system (default exports, re-exports, dynamic imports, JSX references) needs its own design pass.
 
@@ -210,6 +212,10 @@ file_size_threshold = 600                #       nesting_threshold, file_size_se
 
 [detectors.duplicates]
 min_lines = 8
+
+[detectors.slop]
+unwrap_threshold = 10
+any_threshold = 5
 
 [detectors.file_size]
 threshold = 400

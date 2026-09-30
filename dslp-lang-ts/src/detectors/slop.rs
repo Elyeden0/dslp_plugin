@@ -2,7 +2,8 @@
 
 use std::path::Path;
 
-use dslp_core::{Finding, Severity};
+use dslp_base::SlopConfig;
+use dslp_core::{Finding, Position, Severity, Span};
 use dslp_lang_common::{item_finding, walk};
 use tree_sitter::Tree;
 
@@ -13,9 +14,11 @@ const FN_KINDS: &[&str] = &[
 ];
 const DEBUG_CALLS: &[&str] = &["console.log", "console.debug", "console.trace"];
 
-pub fn run(path: &Path, source: &str, tree: &Tree) -> Vec<Finding> {
+pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &SlopConfig) -> Vec<Finding> {
     let bytes = source.as_bytes();
     let mut out = Vec::new();
+    let mut any_count = 0u32;
+    let mut first_any = None;
     walk(tree.root_node(), &mut |node| match node.kind() {
         "catch_clause" => {
             let empty = node
@@ -57,8 +60,27 @@ pub fn run(path: &Path, source: &str, tree: &Tree) -> Vec<Finding> {
                 ));
             }
         }
+        "predefined_type" if node.utf8_text(bytes) == Ok("any") => {
+            any_count += 1;
+            first_any.get_or_insert(node);
+        }
         _ => {}
     });
+    if let Some(at) = first_any.filter(|_| any_count >= cfg.any_threshold) {
+        let line = at.start_position().row as u32 + 1;
+        out.push(Finding::new(
+            "ts.any-density",
+            Severity::Low,
+            path.to_path_buf(),
+            Some(Span::new(Position::new(line, 0), Position::new(line, 0))),
+            format!(
+                "{any_count} explicit `any` types (threshold {}). Each one switches type checking off.",
+                cfg.any_threshold
+            ),
+            Some("Use `unknown` plus narrowing, a generic, or a proper interface.".into()),
+            "any-density",
+        ));
+    }
     out
 }
 
@@ -68,7 +90,7 @@ mod tests {
 
     fn detectors(src: &str) -> Vec<String> {
         let tree = dslp_base::parse("javascript", src).unwrap();
-        run(Path::new("a.js"), src, &tree)
+        run(Path::new("a.js"), src, &tree, &SlopConfig::default())
             .into_iter()
             .map(|f| f.detector)
             .collect()
@@ -94,10 +116,30 @@ mod tests {
     fn fingerprints_ignore_line_shifts() {
         let src = "function f() { console.log(1); }";
         let tree = dslp_base::parse("javascript", src).unwrap();
-        let a = run(Path::new("a.js"), src, &tree);
+        let a = run(Path::new("a.js"), src, &tree, &SlopConfig::default());
         let shifted = format!("\n\n{src}");
         let tree = dslp_base::parse("javascript", &shifted).unwrap();
-        let b = run(Path::new("a.js"), &shifted, &tree);
+        let b = run(Path::new("a.js"), &shifted, &tree, &SlopConfig::default());
         assert_eq!(a[0].fingerprint, b[0].fingerprint);
+    }
+
+    #[test]
+    fn any_density_counts_explicit_any_only() {
+        let cfg = SlopConfig {
+            any_threshold: 3,
+            ..SlopConfig::default()
+        };
+        let run_ts = |src: &str| {
+            let tree = dslp_base::parse("typescript", src).unwrap();
+            run(Path::new("a.ts"), src, &tree, &cfg)
+                .into_iter()
+                .map(|f| f.detector)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            run_ts("let a: any; let b: any[] = []; const c = d as any;"),
+            ["ts.any-density"]
+        );
+        assert!(run_ts("let a: any; let b: unknown; let c: string;").is_empty());
     }
 }

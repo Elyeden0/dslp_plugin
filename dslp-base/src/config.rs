@@ -35,6 +35,7 @@ pub struct DetectorsConfig {
     pub complexity: ComplexityConfig,
     pub dead_pub: DeadPubConfig,
     pub duplicates: DuplicatesConfig,
+    pub slop: SlopConfig,
 }
 
 /// Thresholds a single language overrides; unset fields fall back to the
@@ -100,6 +101,25 @@ pub struct ComplexityConfig {
     pub length_threshold: u32,
     pub param_threshold: u32,
     pub nesting_threshold: u32,
+}
+
+/// File-level counts above which a "sloppy habit" is flagged.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SlopConfig {
+    /// Rust: `.unwrap()` / `.expect()` calls outside tests, per file.
+    pub unwrap_threshold: u32,
+    /// TypeScript: explicit `any` annotations, per file.
+    pub any_threshold: u32,
+}
+
+impl Default for SlopConfig {
+    fn default() -> Self {
+        Self {
+            unwrap_threshold: 10,
+            any_threshold: 5,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

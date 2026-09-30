@@ -57,7 +57,12 @@ impl LanguagePlugin for TsPlugin {
                 &tree,
                 &cfg.detectors.complexity_for("typescript"),
             ));
-            findings.extend(detectors::slop::run(&fh.path, &fh.source, &tree));
+            findings.extend(detectors::slop::run(
+                &fh.path,
+                &fh.source,
+                &tree,
+                &cfg.detectors.slop,
+            ));
         }
         findings
     }

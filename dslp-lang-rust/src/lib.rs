@@ -77,7 +77,12 @@ impl LanguagePlugin for RustPlugin {
                 &p.tree,
                 &cfg.detectors.complexity_for("rust"),
             ));
-            findings.extend(detectors::slop::run(&p.path, &p.source, &p.tree));
+            findings.extend(detectors::slop::run(
+                &p.path,
+                &p.source,
+                &p.tree,
+                &cfg.detectors.slop,
+            ));
             findings.extend(detectors::dead_pub::run(
                 &p.path,
                 &p.source,
