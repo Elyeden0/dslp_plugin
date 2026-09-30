@@ -6,20 +6,20 @@ use serde::{Deserialize, Serialize};
 ///
 /// Every section is optional; defaults match the design doc.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub scan: ScanConfig,
     pub detectors: DetectorsConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ScanConfig {
     pub exclude: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct DetectorsConfig {
     pub file_size: FileSizeConfig,
     pub complexity: ComplexityConfig,
@@ -27,21 +27,21 @@ pub struct DetectorsConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct FileSizeConfig {
     pub threshold: u32,
     pub severity_at: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ComplexityConfig {
     pub cyclomatic_threshold: u32,
     pub length_threshold: u32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct DeadPubConfig {
     pub ignore_paths: Vec<String>,
 }
@@ -106,6 +106,19 @@ mod tests {
         let cfg = load_config(&dir).unwrap();
         assert_eq!(cfg.detectors.file_size.threshold, 400);
         assert_eq!(cfg.detectors.complexity.cyclomatic_threshold, 10);
+    }
+
+    #[test]
+    fn unknown_key_is_an_error() {
+        let dir = tmpdir("typo");
+        fs::create_dir_all(dir.join(".dslp")).unwrap();
+        fs::write(
+            dir.join(".dslp/config.toml"),
+            "[detectors.file_size]\ntreshold = 200\n",
+        )
+        .unwrap();
+        let err = load_config(&dir).unwrap_err();
+        assert!(err.to_string().contains("treshold"), "{err}");
     }
 
     #[test]
