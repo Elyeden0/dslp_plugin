@@ -52,7 +52,11 @@ pub fn plan(state: &State) -> Vec<PlanEntry> {
         })
         .collect();
 
-    entries.sort_by(|a, b| b.penalty.cmp(&a.penalty).then_with(|| a.oldest.cmp(&b.oldest)));
+    entries.sort_by(|a, b| {
+        b.penalty
+            .cmp(&a.penalty)
+            .then_with(|| a.oldest.cmp(&b.oldest))
+    });
     entries
 }
 
@@ -107,8 +111,14 @@ mod tests {
         );
         let entries = plan(&state_with(issues));
         assert_eq!(entries.len(), 2);
-        let a = entries.iter().find(|e| e.file == std::path::Path::new("a.rs")).unwrap();
-        assert_eq!(a.penalty, Severity::Low.weight() + Severity::Medium.weight());
+        let a = entries
+            .iter()
+            .find(|e| e.file == std::path::Path::new("a.rs"))
+            .unwrap();
+        assert_eq!(
+            a.penalty,
+            Severity::Low.weight() + Severity::Medium.weight()
+        );
         assert_eq!(a.issue_count, 2);
         assert_eq!(a.highest_severity, Severity::Medium);
     }
@@ -129,7 +139,11 @@ mod tests {
 
     #[test]
     fn ties_broken_by_oldest_first() {
-        let older = merge_issues(None, vec![finding(Severity::Medium, "old.rs", "o1")], dt("2026-01-01T00:00:00Z"));
+        let older = merge_issues(
+            None,
+            vec![finding(Severity::Medium, "old.rs", "o1")],
+            dt("2026-01-01T00:00:00Z"),
+        );
         let mut state = state_with(older);
         let newer = merge_issues(
             Some(&state),
@@ -141,8 +155,15 @@ mod tests {
         );
         state.issues = newer;
         let entries = plan(&state);
-        assert_eq!(entries[0].penalty, entries[1].penalty, "both files have equal penalty");
-        assert_eq!(entries[0].file, PathBuf::from("old.rs"), "older file should rank first on a tie");
+        assert_eq!(
+            entries[0].penalty, entries[1].penalty,
+            "both files have equal penalty"
+        );
+        assert_eq!(
+            entries[0].file,
+            PathBuf::from("old.rs"),
+            "older file should rank first on a tie"
+        );
     }
 
     #[test]

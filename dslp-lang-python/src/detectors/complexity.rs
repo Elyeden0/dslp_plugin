@@ -5,7 +5,9 @@ use std::path::Path;
 
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
-use dslp_lang_common::{cyclomatic, finding_at_node, node_length_lines, param_count, params_finding};
+use dslp_lang_common::{
+    cyclomatic, finding_at_node, node_length_lines, param_count, params_finding,
+};
 use tree_sitter::{Node, Tree};
 
 /// Python decision-point kinds: `elif_clause` and `case_clause` (PEP 634
@@ -66,7 +68,14 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
         let params = fn_node
             .child_by_field_name("parameters")
             .map_or(0, |p| param_count(p) - receiver_count(p, bytes));
-        out.extend(params_finding(path, fn_node, "python.params", name, params, cfg.param_threshold));
+        out.extend(params_finding(
+            path,
+            fn_node,
+            "python.params",
+            name,
+            params,
+            cfg.param_threshold,
+        ));
     });
     out
 }
@@ -74,7 +83,9 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
 /// 1 if the first parameter is the conventional `self`/`cls` receiver.
 fn receiver_count(params: Node, bytes: &[u8]) -> u32 {
     let first = params.named_child(0).filter(|n| n.kind() == "identifier");
-    let is_receiver = first.and_then(|n| n.utf8_text(bytes).ok()).is_some_and(|t| t == "self" || t == "cls");
+    let is_receiver = first
+        .and_then(|n| n.utf8_text(bytes).ok())
+        .is_some_and(|t| t == "self" || t == "cls");
     u32::from(is_receiver)
 }
 
@@ -133,7 +144,11 @@ def tangle(x):
 "#;
         let t = parse(src);
         let r = run(Path::new("a.py"), src, &t, &cfg());
-        assert!(r.iter().any(|f| f.detector == "python.complexity"), "got: {:?}", r);
+        assert!(
+            r.iter().any(|f| f.detector == "python.complexity"),
+            "got: {:?}",
+            r
+        );
     }
 
     #[test]
@@ -152,7 +167,11 @@ def classify(x):
 "#;
         let t = parse(src);
         let r = run(Path::new("a.py"), src, &t, &cfg());
-        assert!(r.iter().any(|f| f.detector == "python.complexity"), "got: {:?}", r);
+        assert!(
+            r.iter().any(|f| f.detector == "python.complexity"),
+            "got: {:?}",
+            r
+        );
     }
 
     #[test]
@@ -161,7 +180,11 @@ def classify(x):
         let src = format!("def long():\n{}", body);
         let t = parse(&src);
         let r = run(Path::new("a.py"), &src, &t, &cfg());
-        assert!(r.iter().any(|f| f.detector == "python.length"), "got: {:?}", r);
+        assert!(
+            r.iter().any(|f| f.detector == "python.length"),
+            "got: {:?}",
+            r
+        );
     }
 
     #[test]
@@ -181,16 +204,28 @@ def outer():
 "#;
         let t = parse(src);
         let r = run(Path::new("a.py"), src, &t, &cfg());
-        assert!(r.iter().any(|f| f.message.contains("`inner`")), "got: {:?}", r);
+        assert!(
+            r.iter().any(|f| f.message.contains("`inner`")),
+            "got: {:?}",
+            r
+        );
     }
 
     #[test]
     fn many_params_fire_but_self_is_free() {
         let many = "def f(a, b, c):\n    pass\n";
         let r = run(Path::new("a.py"), many, &parse(many), &cfg());
-        assert!(r.iter().any(|f| f.detector == "python.params"), "got: {:?}", r);
+        assert!(
+            r.iter().any(|f| f.detector == "python.params"),
+            "got: {:?}",
+            r
+        );
         let method = "class C:\n    def f(self, a, b):\n        pass\n";
         let r = run(Path::new("a.py"), method, &parse(method), &cfg());
-        assert!(r.iter().all(|f| f.detector != "python.params"), "got: {:?}", r);
+        assert!(
+            r.iter().all(|f| f.detector != "python.params"),
+            "got: {:?}",
+            r
+        );
     }
 }

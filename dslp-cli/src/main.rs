@@ -8,9 +8,9 @@ mod commands;
 mod output;
 
 use cli::{Cli, Command, MutateCommand, QueryCommand};
-use commands::{ScanGate, 
-    cmd_backlog, cmd_badge, cmd_findings, cmd_init, cmd_next, cmd_plan, cmd_reopen, cmd_resolve, cmd_scan, cmd_score,
-    cmd_show, cmd_suppress,
+use commands::{
+    cmd_backlog, cmd_badge, cmd_findings, cmd_init, cmd_next, cmd_plan, cmd_reopen, cmd_resolve,
+    cmd_scan, cmd_score, cmd_show, cmd_suppress, ScanGate,
 };
 
 fn main() -> ExitCode {
@@ -53,8 +53,16 @@ fn validate_lang(lang: Option<&str>, plugins: &[Box<dyn LanguagePlugin>]) -> any
 
 fn dispatch(command: Command, plugins: Vec<Box<dyn LanguagePlugin>>) -> anyhow::Result<ExitCode> {
     match command {
-        Command::Scan { target, json, fail_under, fail_on_new } => {
-            let gate = ScanGate { fail_under, fail_on_new };
+        Command::Scan {
+            target,
+            json,
+            fail_under,
+            fail_on_new,
+        } => {
+            let gate = ScanGate {
+                fail_under,
+                fail_on_new,
+            };
             cmd_scan(&target.path(), plugins, json, target.lang(), gate)
         }
         Command::Init { target } => cmd_init(&target.path()),
@@ -65,35 +73,50 @@ fn dispatch(command: Command, plugins: Vec<Box<dyn LanguagePlugin>>) -> anyhow::
 
 fn dispatch_query(command: QueryCommand) -> anyhow::Result<ExitCode> {
     match command {
-        QueryCommand::Show { fingerprint, target, json } => {
-            cmd_show(&target.path(), target.lang(), &fingerprint, json)
-        }
+        QueryCommand::Show {
+            fingerprint,
+            target,
+            json,
+        } => cmd_show(&target.path(), target.lang(), &fingerprint, json),
         QueryCommand::Next { target, json } => cmd_next(&target.path(), json, target.lang()),
         QueryCommand::Score { target, json } => cmd_score(&target.path(), json, target.lang()),
-        QueryCommand::Findings { target, json, limit } => {
-            cmd_findings(&target.path(), json, limit, target.lang())
-        }
-        QueryCommand::Plan { target, json, limit } => {
-            cmd_plan(&target.path(), json, limit, target.lang())
-        }
+        QueryCommand::Findings {
+            target,
+            json,
+            limit,
+        } => cmd_findings(&target.path(), json, limit, target.lang()),
+        QueryCommand::Plan {
+            target,
+            json,
+            limit,
+        } => cmd_plan(&target.path(), json, limit, target.lang()),
         QueryCommand::Backlog { target, json } => cmd_backlog(&target.path(), json, target.lang()),
-        QueryCommand::Badge { target, label, lenient } => {
-            cmd_badge(&target.path(), &label, lenient, target.lang())
-        }
+        QueryCommand::Badge {
+            target,
+            label,
+            lenient,
+        } => cmd_badge(&target.path(), &label, lenient, target.lang()),
     }
 }
 
 fn dispatch_mutate(command: MutateCommand) -> anyhow::Result<ExitCode> {
     match command {
-        MutateCommand::Resolve { fingerprint, target, json } => {
-            cmd_resolve(&target.path(), target.lang(), &fingerprint, json)
-        }
-        MutateCommand::Reopen { fingerprint, target, json } => {
-            cmd_reopen(&target.path(), target.lang(), &fingerprint, json)
-        }
-        MutateCommand::Suppress { fingerprint, reason, target, json } => {
-            cmd_suppress(&target.path(), target.lang(), &fingerprint, &reason, json)
-        }
+        MutateCommand::Resolve {
+            fingerprint,
+            target,
+            json,
+        } => cmd_resolve(&target.path(), target.lang(), &fingerprint, json),
+        MutateCommand::Reopen {
+            fingerprint,
+            target,
+            json,
+        } => cmd_reopen(&target.path(), target.lang(), &fingerprint, json),
+        MutateCommand::Suppress {
+            fingerprint,
+            reason,
+            target,
+            json,
+        } => cmd_suppress(&target.path(), target.lang(), &fingerprint, &reason, json),
     }
 }
 

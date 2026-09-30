@@ -29,7 +29,12 @@ impl ScanDelta {
 
 pub fn delta(previous: Option<&State>, issues: &[Issue]) -> ScanDelta {
     let before: HashMap<&str, &Status> = previous
-        .map(|s| s.issues.iter().map(|i| (i.fingerprint.as_str(), &i.status)).collect())
+        .map(|s| {
+            s.issues
+                .iter()
+                .map(|i| (i.fingerprint.as_str(), &i.status))
+                .collect()
+        })
         .unwrap_or_default();
     let mut d = ScanDelta {
         new: 0,
@@ -57,15 +62,30 @@ mod tests {
     use std::path::PathBuf;
 
     fn now() -> DateTime<Utc> {
-        DateTime::parse_from_rfc3339("2026-05-01T20:00:00Z").unwrap().with_timezone(&Utc)
+        DateTime::parse_from_rfc3339("2026-05-01T20:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc)
     }
 
     fn finding(snippet: &str) -> Finding {
-        Finding::new("d", Severity::Low, PathBuf::from("a.rs"), None, "m", None, snippet)
+        Finding::new(
+            "d",
+            Severity::Low,
+            PathBuf::from("a.rs"),
+            None,
+            "m",
+            None,
+            snippet,
+        )
     }
 
     fn state(issues: Vec<Issue>) -> State {
-        State { version: STATE_VERSION, last_scan: now(), score: Score::perfect(), issues }
+        State {
+            version: STATE_VERSION,
+            last_scan: now(),
+            score: Score::perfect(),
+            issues,
+        }
     }
 
     #[test]
@@ -78,11 +98,35 @@ mod tests {
 
     #[test]
     fn counts_new_fixed_and_regressed() {
-        let s0 = state(merge_issues(None, vec![finding("keep"), finding("gone"), finding("back")], now()));
-        let mut s1 = state(merge_issues(Some(&s0), vec![finding("keep"), finding("back")], now()));
-        s1.issues.iter_mut().find(|i| i.fingerprint == finding("back").fingerprint).unwrap().resolve();
-        let next = merge_issues(Some(&s1), vec![finding("keep"), finding("back"), finding("fresh")], now());
-        assert_eq!(delta(Some(&s1), &next), ScanDelta { new: 1, fixed: 0, regressed: 1, previous_strict: Some(100.0) });
+        let s0 = state(merge_issues(
+            None,
+            vec![finding("keep"), finding("gone"), finding("back")],
+            now(),
+        ));
+        let mut s1 = state(merge_issues(
+            Some(&s0),
+            vec![finding("keep"), finding("back")],
+            now(),
+        ));
+        s1.issues
+            .iter_mut()
+            .find(|i| i.fingerprint == finding("back").fingerprint)
+            .unwrap()
+            .resolve();
+        let next = merge_issues(
+            Some(&s1),
+            vec![finding("keep"), finding("back"), finding("fresh")],
+            now(),
+        );
+        assert_eq!(
+            delta(Some(&s1), &next),
+            ScanDelta {
+                new: 1,
+                fixed: 0,
+                regressed: 1,
+                previous_strict: Some(100.0)
+            }
+        );
         let after_gone = merge_issues(Some(&s0), vec![finding("keep"), finding("back")], now());
         let d = delta(Some(&s0), &after_gone);
         assert_eq!((d.new, d.fixed, d.regressed), (0, 1, 0));

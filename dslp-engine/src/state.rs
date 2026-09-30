@@ -140,7 +140,10 @@ pub fn find_by_prefix(issues: &[Issue], prefix: &str) -> anyhow::Result<usize> {
         [] => Err(anyhow::anyhow!("no issue matches fingerprint '{}'", prefix)),
         [idx] => Ok(*idx),
         many => {
-            let fps: Vec<&str> = many.iter().map(|&i| issues[i].fingerprint.as_str()).collect();
+            let fps: Vec<&str> = many
+                .iter()
+                .map(|&i| issues[i].fingerprint.as_str())
+                .collect();
             Err(anyhow::anyhow!(
                 "fingerprint '{}' is ambiguous, matches {}: {}",
                 prefix,
@@ -254,7 +257,10 @@ mod tests {
         let mut s = state_with(merge_issues(None, vec![finding("a.rs", "x")], now()));
         s.issues[0].suppress("intentional", now());
         let issues = merge_issues(Some(&s), vec![], later());
-        assert!(issues[0].status.is_resolved(), "dismissed thing that's gone → resolved");
+        assert!(
+            issues[0].status.is_resolved(),
+            "dismissed thing that's gone → resolved"
+        );
     }
 
     #[test]
@@ -285,7 +291,10 @@ mod tests {
 
     #[test]
     fn scoped_lang_state_is_independent_of_default() {
-        let dir = std::env::temp_dir().join(format!("dslp-engine-state-v2-scoped-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!(
+            "dslp-engine-state-v2-scoped-{}",
+            std::process::id()
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let default_state = state_with(merge_issues(None, vec![finding("a.rs", "x")], now()));

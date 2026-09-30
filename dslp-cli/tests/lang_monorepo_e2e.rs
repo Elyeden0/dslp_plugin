@@ -72,7 +72,11 @@ fn scan_with_lang_only_tracks_that_language() {
         .arg(&dir)
         .output()
         .unwrap();
-    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 
     // A scoped scan writes .dslp/state-go.json, not the shared state.json.
     assert!(dir.join(".dslp/state-go.json").exists());
@@ -85,7 +89,9 @@ fn scan_with_lang_only_tracks_that_language() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&findings.stdout).unwrap();
     let arr = v.as_array().unwrap();
-    assert!(arr.iter().all(|i| i["detector"].as_str().unwrap().starts_with("go.")));
+    assert!(arr
+        .iter()
+        .all(|i| i["detector"].as_str().unwrap().starts_with("go.")));
     assert!(!arr.is_empty());
 }
 
@@ -95,7 +101,11 @@ fn unscoped_and_scoped_scans_are_independent() {
     write_go_fixture(&dir);
     write_rust_fixture(&dir);
 
-    let _ = Command::new(dslp_bin()).args(["scan", "--path"]).arg(&dir).output().unwrap();
+    let _ = Command::new(dslp_bin())
+        .args(["scan", "--path"])
+        .arg(&dir)
+        .output()
+        .unwrap();
     let _ = Command::new(dslp_bin())
         .args(["scan", "--lang", "go", "--path"])
         .arg(&dir)
@@ -110,8 +120,12 @@ fn unscoped_and_scoped_scans_are_independent() {
     let full_v: serde_json::Value = serde_json::from_slice(&full.stdout).unwrap();
     let full_arr = full_v.as_array().unwrap();
     // The unscoped scan sees both languages.
-    assert!(full_arr.iter().any(|i| i["detector"].as_str().unwrap().starts_with("go.")));
-    assert!(full_arr.iter().any(|i| i["detector"].as_str().unwrap().starts_with("rust.")));
+    assert!(full_arr
+        .iter()
+        .any(|i| i["detector"].as_str().unwrap().starts_with("go.")));
+    assert!(full_arr
+        .iter()
+        .any(|i| i["detector"].as_str().unwrap().starts_with("rust.")));
 
     let scoped = Command::new(dslp_bin())
         .args(["findings", "--json", "--lang", "go", "--path"])
@@ -120,7 +134,9 @@ fn unscoped_and_scoped_scans_are_independent() {
         .unwrap();
     let scoped_v: serde_json::Value = serde_json::from_slice(&scoped.stdout).unwrap();
     let scoped_arr = scoped_v.as_array().unwrap();
-    assert!(scoped_arr.iter().all(|i| i["detector"].as_str().unwrap().starts_with("go.")));
+    assert!(scoped_arr
+        .iter()
+        .all(|i| i["detector"].as_str().unwrap().starts_with("go.")));
 }
 
 #[test]
@@ -155,16 +171,27 @@ fn resolve_and_suppress_respect_lang_scope() {
         .output()
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&findings.stdout).unwrap();
-    let fp = v.as_array().unwrap()[0]["fingerprint"].as_str().unwrap().to_string();
+    let fp = v.as_array().unwrap()[0]["fingerprint"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     let resolve = Command::new(dslp_bin())
         .args(["resolve", &fp, "--lang", "go", "--path"])
         .arg(&dir)
         .output()
         .unwrap();
-    assert!(resolve.status.success(), "stderr: {}", String::from_utf8_lossy(&resolve.stderr));
+    assert!(
+        resolve.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&resolve.stderr)
+    );
 
     // Without --lang, the (unscanned) shared state file doesn't exist at all.
-    let no_scope = Command::new(dslp_bin()).args(["score", "--json", "--path"]).arg(&dir).output().unwrap();
+    let no_scope = Command::new(dslp_bin())
+        .args(["score", "--json", "--path"])
+        .arg(&dir)
+        .output()
+        .unwrap();
     assert!(!no_scope.status.success());
 }

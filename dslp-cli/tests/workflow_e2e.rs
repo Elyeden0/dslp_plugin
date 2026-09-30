@@ -59,7 +59,10 @@ fn resolve_advances_next() {
         .iter()
         .map(|i| i["fingerprint"].as_str().unwrap())
         .collect();
-    assert!(!still_open.contains(&fp.as_str()), "resolved issue should leave the open queue");
+    assert!(
+        !still_open.contains(&fp.as_str()),
+        "resolved issue should leave the open queue"
+    );
 }
 
 /// Scan `project` and suppress its first open issue with a reason.
@@ -98,7 +101,10 @@ fn suppress_requires_reason() {
         .arg(&project)
         .output()
         .unwrap();
-    assert!(!no_reason.status.success(), "suppress without --reason should fail");
+    assert!(
+        !no_reason.status.success(),
+        "suppress without --reason should fail"
+    );
 }
 
 #[test]
@@ -138,12 +144,21 @@ fn plan_groups_open_issues_by_file() {
     assert!(out.status.success(), "plan failed: {:?}", out);
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     let entries = v.as_array().unwrap();
-    assert!(!entries.is_empty(), "expected at least one file with open issues");
+    assert!(
+        !entries.is_empty(),
+        "expected at least one file with open issues"
+    );
     // Ranked by penalty descending.
-    let penalties: Vec<u64> = entries.iter().map(|e| e["penalty"].as_u64().unwrap()).collect();
+    let penalties: Vec<u64> = entries
+        .iter()
+        .map(|e| e["penalty"].as_u64().unwrap())
+        .collect();
     let mut sorted = penalties.clone();
     sorted.sort_by(|a, b| b.cmp(a));
-    assert_eq!(penalties, sorted, "plan entries must be ranked by penalty descending");
+    assert_eq!(
+        penalties, sorted,
+        "plan entries must be ranked by penalty descending"
+    );
 }
 
 #[test]
@@ -221,7 +236,11 @@ fn badge_uses_strict_score_by_default() {
     assert!(out.status.success(), "badge failed: {:?}", out);
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(v["schemaVersion"], 1);
-    assert_eq!(v["message"], format!("{:.0}", strict), "badge should default to the strict score");
+    assert_eq!(
+        v["message"],
+        format!("{:.0}", strict),
+        "badge should default to the strict score"
+    );
 }
 
 #[test]
@@ -265,5 +284,7 @@ fn unknown_fingerprint_errors() {
         .output()
         .unwrap();
     assert!(!out.status.success(), "unknown fingerprint should error");
-    assert!(String::from_utf8(out.stderr).unwrap().contains("no issue matches"));
+    assert!(String::from_utf8(out.stderr)
+        .unwrap()
+        .contains("no issue matches"));
 }

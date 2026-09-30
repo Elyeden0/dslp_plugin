@@ -8,7 +8,9 @@ use std::path::Path;
 
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
-use dslp_lang_common::{cyclomatic, finding_at_node, node_length_lines, param_count, params_finding};
+use dslp_lang_common::{
+    cyclomatic, finding_at_node, node_length_lines, param_count, params_finding,
+};
 use tree_sitter::{Node, Tree};
 
 /// `switch_case` = each `case` is a path (`default` is `switch_default`,
@@ -68,8 +70,17 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
                 &format!("ts.length:{}", name),
             ));
         }
-        let params = fn_node.child_by_field_name("parameters").map_or(0, param_count);
-        out.extend(params_finding(path, fn_node, "ts.params", name, params, cfg.param_threshold));
+        let params = fn_node
+            .child_by_field_name("parameters")
+            .map_or(0, param_count);
+        out.extend(params_finding(
+            path,
+            fn_node,
+            "ts.params",
+            name,
+            params,
+            cfg.param_threshold,
+        ));
     });
     out
 }
@@ -156,7 +167,11 @@ function tangle(x: number): number {
 "#;
         let t = parse("typescript", src);
         let r = run(Path::new("a.ts"), src, &t, &cfg());
-        assert!(r.iter().any(|f| f.detector == "ts.complexity"), "got: {:?}", r);
+        assert!(
+            r.iter().any(|f| f.detector == "ts.complexity"),
+            "got: {:?}",
+            r
+        );
     }
 
     #[test]
@@ -173,12 +188,18 @@ const tangle = (x: number): number => {
 "#;
         let t = parse("typescript", src);
         let r = run(Path::new("a.ts"), src, &t, &cfg());
-        assert!(r.iter().any(|f| f.message.contains("`tangle`")), "got: {:?}", r);
+        assert!(
+            r.iter().any(|f| f.message.contains("`tangle`")),
+            "got: {:?}",
+            r
+        );
     }
 
     #[test]
     fn long_fn_fires_length() {
-        let body: String = (0..15).map(|i| format!("    let x{} = {};\n", i, i)).collect();
+        let body: String = (0..15)
+            .map(|i| format!("    let x{} = {};\n", i, i))
+            .collect();
         let src = format!("function long() {{\n{}}}\n", body);
         let t = parse("typescript", &src);
         let r = run(Path::new("a.ts"), &src, &t, &cfg());

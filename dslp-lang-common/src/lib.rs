@@ -99,7 +99,9 @@ pub fn enclosing_name(node: Node, bytes: &[u8], fn_kinds: &[&str]) -> String {
     let mut cur = node.parent();
     while let Some(n) = cur {
         if fn_kinds.contains(&n.kind()) {
-            let name = n.child_by_field_name("name").and_then(|x| x.utf8_text(bytes).ok());
+            let name = n
+                .child_by_field_name("name")
+                .and_then(|x| x.utf8_text(bytes).ok());
             return name.unwrap_or("<anonymous>").to_string();
         }
         cur = n.parent();
@@ -248,7 +250,10 @@ fn is_wrapping_declarator(kind: &str) -> bool {
 }
 
 fn is_compound_name(kind: &str) -> bool {
-    matches!(kind, "qualified_identifier" | "operator_name" | "destructor_name")
+    matches!(
+        kind,
+        "qualified_identifier" | "operator_name" | "destructor_name"
+    )
 }
 
 fn last_child_identifier(node: Node, bytes: &[u8]) -> Option<String> {
@@ -283,7 +288,8 @@ mod tests {
 
     #[test]
     fn cyclomatic_counts_decision_kinds() {
-        let tree = dslp_base::parse("rust", "fn f(x: i32) -> i32 { if x > 0 { 1 } else { 2 } }").unwrap();
+        let tree =
+            dslp_base::parse("rust", "fn f(x: i32) -> i32 { if x > 0 { 1 } else { 2 } }").unwrap();
         // one if_expression → base 1 + 1 = 2
         let n = cyclomatic(tree.root_node(), &["if_expression"]);
         assert_eq!(n, 2);
@@ -328,7 +334,14 @@ mod tests {
             message_tail: "x",
             fix_hint: "y",
         };
-        assert!(file_size(std::path::Path::new("a.rs"), "a\nb\n", "rust.file-size", &cfg, &text).is_empty());
+        assert!(file_size(
+            std::path::Path::new("a.rs"),
+            "a\nb\n",
+            "rust.file-size",
+            &cfg,
+            &text
+        )
+        .is_empty());
     }
 
     #[test]

@@ -7,7 +7,11 @@ use std::process::{Command, Output};
 use common::{dslp_bin, fresh_dir};
 
 fn run(args: &[&str], dir: &std::path::Path) -> Output {
-    Command::new(dslp_bin()).args(args).current_dir(dir).output().unwrap()
+    Command::new(dslp_bin())
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .unwrap()
 }
 
 fn stdout(out: &Output) -> String {
@@ -15,7 +19,9 @@ fn stdout(out: &Output) -> String {
 }
 
 fn complex_rs(name: &str) -> String {
-    let body: String = (0..12).map(|i| format!("    if x == {i} {{ return {i}; }}\n")).collect();
+    let body: String = (0..12)
+        .map(|i| format!("    if x == {i} {{ return {i}; }}\n"))
+        .collect();
     format!("fn {name}(x: i32) -> i32 {{\n{body}    0\n}}\nfn main() {{ {name}(1); }}\n")
 }
 
@@ -28,9 +34,14 @@ fn scan_reports_change_since_last_scan() {
 
     std::fs::write(dir.join("a.rs"), "fn main() {}\n").unwrap();
     let second = run(&["scan"], &dir);
-    assert!(stdout(&second).contains("+0 new, 1 fixed, 0 regressed"), "{}", stdout(&second));
+    assert!(
+        stdout(&second).contains("+0 new, 1 fixed, 0 regressed"),
+        "{}",
+        stdout(&second)
+    );
 
-    let json: serde_json::Value = serde_json::from_slice(&run(&["scan", "--json"], &dir).stdout).unwrap();
+    let json: serde_json::Value =
+        serde_json::from_slice(&run(&["scan", "--json"], &dir).stdout).unwrap();
     assert_eq!(json["delta"]["new"], 0);
 }
 
@@ -38,8 +49,14 @@ fn scan_reports_change_since_last_scan() {
 fn fail_under_gates_on_strict_score() {
     let dir = fresh_dir("ci-under");
     std::fs::write(dir.join("a.rs"), complex_rs("helper")).unwrap();
-    assert_eq!(run(&["scan", "--fail-under", "99.9"], &dir).status.code(), Some(1));
-    assert_eq!(run(&["scan", "--fail-under", "50"], &dir).status.code(), Some(0));
+    assert_eq!(
+        run(&["scan", "--fail-under", "99.9"], &dir).status.code(),
+        Some(1)
+    );
+    assert_eq!(
+        run(&["scan", "--fail-under", "50"], &dir).status.code(),
+        Some(0)
+    );
 }
 
 #[test]
@@ -57,7 +74,11 @@ fn fail_on_new_only_fires_with_a_baseline() {
 
     let fresh = fresh_dir("ci-new-first");
     std::fs::write(fresh.join("b.rs"), complex_rs("helper")).unwrap();
-    assert_eq!(run(&["scan", "--fail-on-new"], &fresh).status.code(), Some(0), "first scan has no baseline");
+    assert_eq!(
+        run(&["scan", "--fail-on-new"], &fresh).status.code(),
+        Some(0),
+        "first scan has no baseline"
+    );
 }
 
 #[test]
@@ -66,7 +87,10 @@ fn init_writes_config_and_gitignore_once() {
     std::fs::write(dir.join(".gitignore"), "target").unwrap();
     assert!(run(&["init"], &dir).status.success());
     assert!(dir.join(".dslp/config.toml").exists());
-    assert_eq!(std::fs::read_to_string(dir.join(".gitignore")).unwrap(), "target\n.dslp/\n");
+    assert_eq!(
+        std::fs::read_to_string(dir.join(".gitignore")).unwrap(),
+        "target\n.dslp/\n"
+    );
     // The generated config must load, and init must not clobber it.
     std::fs::write(dir.join("a.rs"), "fn main() {}\n").unwrap();
     assert!(run(&["scan"], &dir).status.success());
@@ -78,11 +102,15 @@ fn show_displays_wontfix_reason() {
     let dir = fresh_dir("wf-show");
     std::fs::write(dir.join("a.rs"), complex_rs("helper")).unwrap();
     run(&["scan"], &dir);
-    let listed: serde_json::Value = serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
+    let listed: serde_json::Value =
+        serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
     let fp = listed[0]["fingerprint"].as_str().unwrap().to_string();
     run(&["suppress", &fp, "--reason", "legacy parser"], &dir);
     let out = stdout(&run(&["show", &fp[..8]], &dir));
-    assert!(out.contains("wontfix") && out.contains("legacy parser"), "{out}");
+    assert!(
+        out.contains("wontfix") && out.contains("legacy parser"),
+        "{out}"
+    );
 }
 
 #[test]
@@ -90,14 +118,24 @@ fn config_can_disable_detectors_and_override_severity() {
     let dir = fresh_dir("cfg-overrides");
     std::fs::write(dir.join("a.rs"), complex_rs("helper")).unwrap();
     std::fs::create_dir_all(dir.join(".dslp")).unwrap();
-    std::fs::write(dir.join(".dslp/config.toml"), "[detectors.severity]\n\"rust.complexity\" = \"critical\"\n").unwrap();
+    std::fs::write(
+        dir.join(".dslp/config.toml"),
+        "[detectors.severity]\n\"rust.complexity\" = \"critical\"\n",
+    )
+    .unwrap();
     run(&["scan"], &dir);
-    let v: serde_json::Value = serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
+    let v: serde_json::Value =
+        serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
     assert_eq!(v[0]["severity"], "critical");
 
-    std::fs::write(dir.join(".dslp/config.toml"), "[detectors]\ndisable = [\"rust.*\"]\n").unwrap();
+    std::fs::write(
+        dir.join(".dslp/config.toml"),
+        "[detectors]\ndisable = [\"rust.*\"]\n",
+    )
+    .unwrap();
     run(&["scan"], &dir);
-    let v: serde_json::Value = serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
+    let v: serde_json::Value =
+        serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
     assert!(v.as_array().unwrap().is_empty());
 }
 
@@ -107,14 +145,24 @@ fn inline_ignore_becomes_wontfix_and_still_counts_for_strict() {
     let src = complex_rs("helper");
     std::fs::write(dir.join("a.rs"), &src).unwrap();
     run(&["scan"], &dir);
-    let open_score: serde_json::Value = serde_json::from_slice(&run(&["score", "--json"], &dir).stdout).unwrap();
+    let open_score: serde_json::Value =
+        serde_json::from_slice(&run(&["score", "--json"], &dir).stdout).unwrap();
 
-    std::fs::write(dir.join("a.rs"), format!("// dslp-ignore rust.complexity: generated tables\n{src}")).unwrap();
+    std::fs::write(
+        dir.join("a.rs"),
+        format!("// dslp-ignore rust.complexity: generated tables\n{src}"),
+    )
+    .unwrap();
     run(&["scan"], &dir);
-    let backlog: serde_json::Value = serde_json::from_slice(&run(&["backlog", "--json"], &dir).stdout).unwrap();
+    let backlog: serde_json::Value =
+        serde_json::from_slice(&run(&["backlog", "--json"], &dir).stdout).unwrap();
     assert_eq!(backlog.as_array().unwrap().len(), 1);
     assert_eq!(backlog[0]["status"]["reason"], "inline: generated tables");
-    let score: serde_json::Value = serde_json::from_slice(&run(&["score", "--json"], &dir).stdout).unwrap();
-    assert_eq!(score["strict"], open_score["strict"], "an inline ignore must not raise the strict score");
+    let score: serde_json::Value =
+        serde_json::from_slice(&run(&["score", "--json"], &dir).stdout).unwrap();
+    assert_eq!(
+        score["strict"], open_score["strict"],
+        "an inline ignore must not raise the strict score"
+    );
     assert!(score["lenient"].as_f64() > open_score["lenient"].as_f64());
 }

@@ -4,16 +4,25 @@ pub fn print_score_line(s: &Score) {
     if s.wontfix_count > 0 {
         println!(
             "Lenient {:.1} / Strict {:.1} (gap {:.1})   {} open · {} wontfix",
-            s.lenient, s.strict, s.gap(), s.open_count, s.wontfix_count
+            s.lenient,
+            s.strict,
+            s.gap(),
+            s.open_count,
+            s.wontfix_count
         );
     } else {
-        println!("Score: {:.1} / 100   ({} open issue(s))", s.lenient, s.open_count);
+        println!(
+            "Score: {:.1} / 100   ({} open issue(s))",
+            s.lenient, s.open_count
+        );
     }
 }
 
 /// One-line "what this scan changed"; silent on the first scan (no baseline).
 pub fn print_delta_line(d: &dslp_engine::ScanDelta, strict: f64) {
-    let Some(before) = d.previous_strict else { return };
+    let Some(before) = d.previous_strict else {
+        return;
+    };
     println!(
         "Since last scan: +{} new, {} fixed, {} regressed (strict {:.1} → {:.1})",
         d.new, d.fixed, d.regressed, before, strict
@@ -40,7 +49,11 @@ pub fn print_issue(issue: &Issue) {
         println!("  How to fix: {}", hint);
     }
     println!();
-    println!("  When done: `dslp resolve {}`  (or `dslp suppress {} --reason \"...\"`)", short_fp(&issue.fingerprint), short_fp(&issue.fingerprint));
+    println!(
+        "  When done: `dslp resolve {}`  (or `dslp suppress {} --reason \"...\"`)",
+        short_fp(&issue.fingerprint),
+        short_fp(&issue.fingerprint)
+    );
 }
 
 pub fn short_fp(fp: &str) -> &str {

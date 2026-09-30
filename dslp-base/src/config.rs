@@ -105,11 +105,8 @@ mod tests {
     use std::fs;
 
     fn tmpdir(label: &str) -> std::path::PathBuf {
-        let p = std::env::temp_dir().join(format!(
-            "dslp-base-config-{}-{}",
-            label,
-            std::process::id()
-        ));
+        let p =
+            std::env::temp_dir().join(format!("dslp-base-config-{}-{}", label, std::process::id()));
         let _ = fs::remove_dir_all(&p);
         fs::create_dir_all(&p).unwrap();
         p

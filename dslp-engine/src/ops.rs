@@ -27,7 +27,11 @@ fn load_or_err(project_root: &Path, lang: Option<&str>) -> anyhow::Result<crate:
 
 /// Mark the issue matching `fp_prefix` as Resolved (optimistic — a later scan
 /// that re-detects it will reopen it as a regression).
-pub fn resolve(project_root: &Path, lang: Option<&str>, fp_prefix: &str) -> anyhow::Result<OpResult> {
+pub fn resolve(
+    project_root: &Path,
+    lang: Option<&str>,
+    fp_prefix: &str,
+) -> anyhow::Result<OpResult> {
     let mut state = load_or_err(project_root, lang)?;
     let idx = find_by_prefix(&state.issues, fp_prefix)?;
     state.issues[idx].resolve();
@@ -35,7 +39,11 @@ pub fn resolve(project_root: &Path, lang: Option<&str>, fp_prefix: &str) -> anyh
 }
 
 /// Put the issue matching `fp_prefix` back to Open (undo `resolve`/`suppress`).
-pub fn reopen(project_root: &Path, lang: Option<&str>, fp_prefix: &str) -> anyhow::Result<OpResult> {
+pub fn reopen(
+    project_root: &Path,
+    lang: Option<&str>,
+    fp_prefix: &str,
+) -> anyhow::Result<OpResult> {
     let mut state = load_or_err(project_root, lang)?;
     let idx = find_by_prefix(&state.issues, fp_prefix)?;
     state.issues[idx].reopen();
@@ -44,7 +52,12 @@ pub fn reopen(project_root: &Path, lang: Option<&str>, fp_prefix: &str) -> anyho
 
 /// Mark the issue matching `fp_prefix` as Wontfix with a reason (a standing
 /// decision that survives rescans but still counts toward the strict score).
-pub fn suppress(project_root: &Path, lang: Option<&str>, fp_prefix: &str, reason: &str) -> anyhow::Result<OpResult> {
+pub fn suppress(
+    project_root: &Path,
+    lang: Option<&str>,
+    fp_prefix: &str,
+    reason: &str,
+) -> anyhow::Result<OpResult> {
     if reason.trim().is_empty() {
         return Err(anyhow::anyhow!("suppress requires a non-empty --reason"));
     }
@@ -54,7 +67,12 @@ pub fn suppress(project_root: &Path, lang: Option<&str>, fp_prefix: &str, reason
     finish(project_root, lang, state, idx)
 }
 
-fn finish(project_root: &Path, lang: Option<&str>, mut state: crate::state::State, idx: usize) -> anyhow::Result<OpResult> {
+fn finish(
+    project_root: &Path,
+    lang: Option<&str>,
+    mut state: crate::state::State,
+    idx: usize,
+) -> anyhow::Result<OpResult> {
     state.score = score_issues(&state.issues, state.score.total_loc);
     let issue = state.issues[idx].clone();
     save(project_root, lang, &state)?;
@@ -113,7 +131,10 @@ mod tests {
         let fp = seed(&dir);
         let res = resolve(&dir, None, &fp[..6]).unwrap();
         assert!(res.issue.status.is_resolved());
-        assert!((res.score.lenient - 100.0).abs() < 1e-9, "resolving the only issue → lenient 100");
+        assert!(
+            (res.score.lenient - 100.0).abs() < 1e-9,
+            "resolving the only issue → lenient 100"
+        );
     }
 
     #[test]

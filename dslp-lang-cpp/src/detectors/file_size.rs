@@ -32,7 +32,12 @@ mod tests {
 
     #[test]
     fn fires_above_threshold() {
-        let r = run(Path::new("a.cpp"), &"x\n".repeat(8), "cpp.file-size", &cfg());
+        let r = run(
+            Path::new("a.cpp"),
+            &"x\n".repeat(8),
+            "cpp.file-size",
+            &cfg(),
+        );
         assert_eq!(r.len(), 1);
         assert_eq!(r[0].detector, "cpp.file-size");
     }

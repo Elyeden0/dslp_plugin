@@ -10,7 +10,11 @@ use crate::state::State;
 
 /// Wontfix issues, most recently suppressed first.
 pub fn backlog(state: &State) -> Vec<&Issue> {
-    let mut v: Vec<&Issue> = state.issues.iter().filter(|i| i.status.is_wontfix()).collect();
+    let mut v: Vec<&Issue> = state
+        .issues
+        .iter()
+        .filter(|i| i.status.is_wontfix())
+        .collect();
     v.sort_by_key(|i| std::cmp::Reverse(wontfix_at(i)));
     v
 }
@@ -59,7 +63,11 @@ mod tests {
     fn only_wontfix_appears() {
         let mut issues = merge_issues(
             None,
-            vec![finding("a.rs", "a"), finding("b.rs", "b"), finding("c.rs", "c")],
+            vec![
+                finding("a.rs", "a"),
+                finding("b.rs", "b"),
+                finding("c.rs", "c"),
+            ],
             dt("2026-05-01T20:00:00Z"),
         );
         issues[0].suppress("acceptable", dt("2026-05-01T20:00:00Z"));

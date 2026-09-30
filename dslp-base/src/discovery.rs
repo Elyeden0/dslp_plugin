@@ -6,11 +6,7 @@ use ignore::WalkBuilder;
 /// (directory or file prefixes, matched component-wise against the path
 /// relative to `root`, so `src` excludes `src/a.rs` but not `src2/a.rs`). Returns files whose extension
 /// matches one of `extensions` (without the leading dot).
-pub fn discover_files(
-    root: &Path,
-    extensions: &[&str],
-    excludes: &[String],
-) -> Vec<PathBuf> {
+pub fn discover_files(root: &Path, extensions: &[&str], excludes: &[String]) -> Vec<PathBuf> {
     let mut walker = WalkBuilder::new(root);
     walker
         .hidden(false) // .dotfiles are fine to surface; gitignore still hides .git
@@ -64,11 +60,8 @@ mod tests {
     }
 
     fn tmpdir(label: &str) -> PathBuf {
-        let p = std::env::temp_dir().join(format!(
-            "dslp-base-disc-{}-{}",
-            label,
-            std::process::id()
-        ));
+        let p =
+            std::env::temp_dir().join(format!("dslp-base-disc-{}-{}", label, std::process::id()));
         let _ = fs::remove_dir_all(&p);
         fs::create_dir_all(&p).unwrap();
         p
@@ -124,10 +117,7 @@ mod tests {
         let dir = tmpdir("excludes");
         make_tree(
             &dir,
-            &[
-                ("vendor/x.rs", "fn x() {}"),
-                ("src/y.rs", "fn y() {}"),
-            ],
+            &[("vendor/x.rs", "fn x() {}"), ("src/y.rs", "fn y() {}")],
         );
         let found = discover_files(&dir, &["rs"], &["vendor/".to_string()]);
         assert_eq!(found.len(), 1);

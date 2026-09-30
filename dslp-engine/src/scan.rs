@@ -35,7 +35,10 @@ pub fn run_scan(
 
     // Walk the tree once for every extension any plugin claims, and read each
     // file once — several plugins (ts, react, nextjs, nuxt) share extensions.
-    let all_exts: Vec<&str> = plugins.iter().flat_map(|p| p.extensions().iter().copied()).collect();
+    let all_exts: Vec<&str> = plugins
+        .iter()
+        .flat_map(|p| p.extensions().iter().copied())
+        .collect();
     let mut sources: HashMap<PathBuf, Option<String>> = HashMap::new();
     let mut handles_per_plugin: Vec<Vec<FileHandle>> = Vec::new();
     let discovered = discover_files(project_root, &all_exts, &config.scan.exclude);
@@ -56,7 +59,10 @@ pub fn run_scan(
                 // Plugins see (and findings record) paths relative to the
                 // project root, so `scan .` and `scan /abs/path` agree.
                 let rel = abs.strip_prefix(project_root).unwrap_or(abs).to_path_buf();
-                handles.push(FileHandle { path: rel, source: source.clone() });
+                handles.push(FileHandle {
+                    path: rel,
+                    source: source.clone(),
+                });
             }
         }
         handles_per_plugin.push(handles);
@@ -67,7 +73,10 @@ pub fn run_scan(
         .par_iter()
         .zip(handles_per_plugin.par_iter())
         .map(|(plugin, handles)| {
-            let ctx = dslp_core::ScanContext { project_root, config: cfg_ref };
+            let ctx = dslp_core::ScanContext {
+                project_root,
+                config: cfg_ref,
+            };
             plugin.scan(&ctx, handles)
         })
         .collect();
@@ -136,7 +145,17 @@ mod tests {
 
     #[test]
     fn disambiguate_makes_duplicate_fingerprints_unique() {
-        let mk = || Finding::new("d", Severity::Low, PathBuf::from("a.rs"), None, "m", None, "same");
+        let mk = || {
+            Finding::new(
+                "d",
+                Severity::Low,
+                PathBuf::from("a.rs"),
+                None,
+                "m",
+                None,
+                "same",
+            )
+        };
         let out = disambiguate(vec![mk(), mk(), mk()]);
         let mut fps: Vec<_> = out.iter().map(|f| f.fingerprint.clone()).collect();
         fps.sort();

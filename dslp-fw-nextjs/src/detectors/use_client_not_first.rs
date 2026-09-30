@@ -128,9 +128,7 @@ fn step_in_code(state: &mut SkipState, idx: usize, trimmed: &str) -> Step {
 }
 
 fn is_blank_or_skippable_line(idx: usize, trimmed: &str) -> bool {
-    trimmed.is_empty()
-        || (idx == 0 && trimmed.starts_with("#!"))
-        || trimmed.starts_with("//")
+    trimmed.is_empty() || (idx == 0 && trimmed.starts_with("#!")) || trimmed.starts_with("//")
 }
 
 fn has_meaningful_tail(after: &str) -> bool {

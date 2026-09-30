@@ -57,9 +57,7 @@ impl LanguagePlugin for ReactPlugin {
                 continue;
             };
             findings.extend(detectors::hook_return_bloat::run(
-                &fh.path,
-                &fh.source,
-                &tree,
+                &fh.path, &fh.source, &tree,
             ));
         }
         findings

@@ -6,7 +6,11 @@ use dslp_core::{Finding, Severity};
 use dslp_lang_common::{item_finding, walk};
 use tree_sitter::Tree;
 
-const FN_KINDS: &[&str] = &["function_declaration", "method_definition", "function_expression"];
+const FN_KINDS: &[&str] = &[
+    "function_declaration",
+    "method_definition",
+    "function_expression",
+];
 const DEBUG_CALLS: &[&str] = &["console.log", "console.debug", "console.trace"];
 
 pub fn run(path: &Path, source: &str, tree: &Tree) -> Vec<Finding> {
@@ -14,7 +18,9 @@ pub fn run(path: &Path, source: &str, tree: &Tree) -> Vec<Finding> {
     let mut out = Vec::new();
     walk(tree.root_node(), &mut |node| match node.kind() {
         "catch_clause" => {
-            let empty = node.child_by_field_name("body").is_some_and(|b| b.named_child_count() == 0);
+            let empty = node
+                .child_by_field_name("body")
+                .is_some_and(|b| b.named_child_count() == 0);
             if empty {
                 out.push(item_finding(
                     path, node, bytes, FN_KINDS, "ts.empty-catch", Severity::Medium,
@@ -25,15 +31,27 @@ pub fn run(path: &Path, source: &str, tree: &Tree) -> Vec<Finding> {
             }
         }
         "debugger_statement" => out.push(item_finding(
-            path, node, bytes, FN_KINDS, "ts.leftover-debug", Severity::Low,
+            path,
+            node,
+            bytes,
+            FN_KINDS,
+            "ts.leftover-debug",
+            Severity::Low,
             "`debugger` statement left in code",
             "Remove it before committing.",
         )),
         "call_expression" => {
-            let callee = node.child_by_field_name("function").and_then(|f| f.utf8_text(bytes).ok());
+            let callee = node
+                .child_by_field_name("function")
+                .and_then(|f| f.utf8_text(bytes).ok());
             if callee.is_some_and(|c| DEBUG_CALLS.contains(&c)) {
                 out.push(item_finding(
-                    path, node, bytes, FN_KINDS, "ts.leftover-debug", Severity::Low,
+                    path,
+                    node,
+                    bytes,
+                    FN_KINDS,
+                    "ts.leftover-debug",
+                    Severity::Low,
                     &format!("`{}` call left in code", callee.unwrap_or_default()),
                     "Remove it, or route real logging through your logger.",
                 ));
@@ -50,7 +68,10 @@ mod tests {
 
     fn detectors(src: &str) -> Vec<String> {
         let tree = dslp_base::parse("javascript", src).unwrap();
-        run(Path::new("a.js"), src, &tree).into_iter().map(|f| f.detector).collect()
+        run(Path::new("a.js"), src, &tree)
+            .into_iter()
+            .map(|f| f.detector)
+            .collect()
     }
 
     #[test]
@@ -62,7 +83,10 @@ mod tests {
 
     #[test]
     fn debug_leftovers_fire_but_console_error_does_not() {
-        assert_eq!(detectors("function f() { console.log(1); debugger; }"), ["ts.leftover-debug"; 2]);
+        assert_eq!(
+            detectors("function f() { console.log(1); debugger; }"),
+            ["ts.leftover-debug"; 2]
+        );
         assert!(detectors("console.error('boom'); console.warn('w');").is_empty());
     }
 

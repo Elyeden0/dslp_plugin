@@ -31,12 +31,13 @@ pub fn score_issues(issues: &[Issue], total_loc: u64) -> Score {
                 lenient_penalty += w;
                 strict_penalty += w;
                 open_count += 1;
-                let entry = by_detector
-                    .entry(issue.detector.clone())
-                    .or_insert(DetectorBreakdown {
-                        findings: 0,
-                        penalty: 0,
-                    });
+                let entry =
+                    by_detector
+                        .entry(issue.detector.clone())
+                        .or_insert(DetectorBreakdown {
+                            findings: 0,
+                            penalty: 0,
+                        });
                 entry.findings += 1;
                 entry.penalty += w;
             }
@@ -115,8 +116,14 @@ mod tests {
         issues[0].suppress("acceptable", now());
         let after = score_issues(&issues, 1000);
 
-        assert!(after.lenient > before.lenient, "lenient improves when an open issue is dismissed");
-        assert!((after.strict - before.strict).abs() < 1e-9, "strict unchanged by dismissal");
+        assert!(
+            after.lenient > before.lenient,
+            "lenient improves when an open issue is dismissed"
+        );
+        assert!(
+            (after.strict - before.strict).abs() < 1e-9,
+            "strict unchanged by dismissal"
+        );
         assert!(after.gap() > before.gap(), "gap widens");
         assert_eq!(after.open_count, 1);
         assert_eq!(after.wontfix_count, 1);
@@ -132,7 +139,10 @@ mod tests {
         issues[0].resolve();
         let after = score_issues(&issues, 1000);
         assert!(after.lenient > before.lenient);
-        assert!(after.strict > before.strict, "resolving an issue helps strict too");
+        assert!(
+            after.strict > before.strict,
+            "resolving an issue helps strict too"
+        );
     }
 
     #[test]

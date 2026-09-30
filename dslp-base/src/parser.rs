@@ -31,7 +31,9 @@ fn language_for(lang_id: &str) -> Result<Language> {
 fn grammar_loaders() -> &'static [GrammarEntry] {
     &[
         ("rust", || tree_sitter_rust::language()),
-        ("typescript", || tree_sitter_typescript::language_typescript()),
+        ("typescript", || {
+            tree_sitter_typescript::language_typescript()
+        }),
         ("tsx", || tree_sitter_typescript::language_tsx()),
         ("javascript", || tree_sitter_javascript::language()),
         ("go", || tree_sitter_go::language()),
@@ -91,7 +93,11 @@ mod tests {
 
     #[test]
     fn parses_trivial_cpp() {
-        let tree = parse("cpp", "#include <vector>\nint main() { std::vector<int> v; return 0; }").unwrap();
+        let tree = parse(
+            "cpp",
+            "#include <vector>\nint main() { std::vector<int> v; return 0; }",
+        )
+        .unwrap();
         assert!(!tree.root_node().has_error());
     }
 

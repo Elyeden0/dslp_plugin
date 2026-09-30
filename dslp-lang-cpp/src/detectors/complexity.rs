@@ -25,12 +25,7 @@ const DECISION_KINDS: &[&str] = &[
     "||",
 ];
 
-pub fn run(
-    path: &Path,
-    source: &str,
-    tree: &Tree,
-    cfg: &ComplexityConfig,
-) -> Vec<Finding> {
+pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Vec<Finding> {
     let mut out = Vec::new();
     let bytes = source.as_bytes();
     walk_functions(tree.root_node(), bytes, &mut |fn_node, name| {

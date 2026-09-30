@@ -3,7 +3,9 @@ use std::process::ExitCode;
 
 use dslp_core::{Issue, LanguagePlugin};
 
-use crate::output::{print_delta_line, print_issue, print_issue_line, print_score_line, severity_label};
+use crate::output::{
+    print_delta_line, print_issue, print_issue_line, print_score_line, severity_label,
+};
 
 /// CI gating conditions for `scan`; any violated one makes it exit 1.
 pub struct ScanGate {
@@ -15,11 +17,16 @@ impl ScanGate {
     fn violation(&self, report: &dslp_engine::ScanReport) -> Option<String> {
         let strict = report.state.score.strict;
         if let Some(min) = self.fail_under.filter(|min| strict < *min) {
-            return Some(format!("strict score {strict:.1} is below --fail-under {min}"));
+            return Some(format!(
+                "strict score {strict:.1} is below --fail-under {min}"
+            ));
         }
         let d = &report.delta;
         if self.fail_on_new && d.has_baseline() && d.new + d.regressed > 0 {
-            return Some(format!("{} new and {} regressed issue(s) since the previous scan", d.new, d.regressed));
+            return Some(format!(
+                "{} new and {} regressed issue(s) since the previous scan",
+                d.new, d.regressed
+            ));
         }
         None
     }
@@ -49,7 +56,10 @@ pub fn cmd_scan(
         });
         println!("{}", serde_json::to_string_pretty(&payload)?);
     } else {
-        println!("Scanned {} file(s), {} LoC", report.files_scanned, report.total_loc);
+        println!(
+            "Scanned {} file(s), {} LoC",
+            report.files_scanned, report.total_loc
+        );
         print_score_line(score);
         print_delta_line(&report.delta, score.strict);
     }
@@ -60,7 +70,12 @@ pub fn cmd_scan(
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn cmd_show(path: &Path, lang: Option<&str>, fingerprint: &str, json: bool) -> anyhow::Result<ExitCode> {
+pub fn cmd_show(
+    path: &Path,
+    lang: Option<&str>,
+    fingerprint: &str,
+    json: bool,
+) -> anyhow::Result<ExitCode> {
     let Some(state) = dslp_engine::load(path, lang)? else {
         return no_scan(path, lang, json);
     };
@@ -78,9 +93,15 @@ pub fn cmd_show(path: &Path, lang: Option<&str>, fingerprint: &str, json: bool) 
     match &issue.status {
         dslp_core::Status::Open => println!("  Status: open"),
         dslp_core::Status::Resolved => println!("  Status: resolved"),
-        dslp_core::Status::Wontfix { reason, at } => println!("  Status: wontfix ({}) — {reason}", at.format("%Y-%m-%d")),
+        dslp_core::Status::Wontfix { reason, at } => {
+            println!("  Status: wontfix ({}) — {reason}", at.format("%Y-%m-%d"))
+        }
     }
-    println!("  First seen {}, last seen {}", issue.first_seen.format("%Y-%m-%d"), issue.last_seen.format("%Y-%m-%d"));
+    println!(
+        "  First seen {}, last seen {}",
+        issue.first_seen.format("%Y-%m-%d"),
+        issue.last_seen.format("%Y-%m-%d")
+    );
     Ok(ExitCode::SUCCESS)
 }
 
@@ -95,10 +116,17 @@ pub fn cmd_init(path: &Path) -> anyhow::Result<ExitCode> {
 
     let gitignore = path.join(".gitignore");
     let existing = std::fs::read_to_string(&gitignore).unwrap_or_default();
-    if existing.lines().any(|l| matches!(l.trim(), ".dslp" | ".dslp/" | "/.dslp" | "/.dslp/")) {
+    if existing
+        .lines()
+        .any(|l| matches!(l.trim(), ".dslp" | ".dslp/" | "/.dslp" | "/.dslp/"))
+    {
         return Ok(ExitCode::SUCCESS);
     }
-    let sep = if existing.is_empty() || existing.ends_with('\n') { "" } else { "\n" };
+    let sep = if existing.is_empty() || existing.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
     std::fs::write(&gitignore, format!("{existing}{sep}.dslp/\n"))?;
     println!("Added .dslp/ to {}", gitignore.display());
     Ok(ExitCode::SUCCESS)
@@ -110,9 +138,15 @@ pub fn cmd_next(path: &Path, json: bool, lang: Option<&str>) -> anyhow::Result<E
     };
     let Some(issue) = dslp_engine::next_issue(&state) else {
         if json {
-            println!(r#"{{"clean":true,"lenient":{},"strict":{}}}"#, state.score.lenient, state.score.strict);
+            println!(
+                r#"{{"clean":true,"lenient":{},"strict":{}}}"#,
+                state.score.lenient, state.score.strict
+            );
         } else {
-            println!("No open issues. Lenient {:.1} / Strict {:.1}", state.score.lenient, state.score.strict);
+            println!(
+                "No open issues. Lenient {:.1} / Strict {:.1}",
+                state.score.lenient, state.score.strict
+            );
         }
         return Ok(ExitCode::from(1));
     };
@@ -134,12 +168,23 @@ pub fn cmd_score(path: &Path, json: bool, lang: Option<&str>) -> anyhow::Result<
         let s = &state.score;
         println!("Lenient: {:.1} / 100", s.lenient);
         println!("Strict:  {:.1} / 100", s.strict);
-        println!("Gap:     {:.1}   ({} open, {} wontfix, {} LoC)", s.gap(), s.open_count, s.wontfix_count, s.total_loc);
+        println!(
+            "Gap:     {:.1}   ({} open, {} wontfix, {} LoC)",
+            s.gap(),
+            s.open_count,
+            s.wontfix_count,
+            s.total_loc
+        );
     }
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn cmd_findings(path: &Path, json: bool, limit: Option<usize>, lang: Option<&str>) -> anyhow::Result<ExitCode> {
+pub fn cmd_findings(
+    path: &Path,
+    json: bool,
+    limit: Option<usize>,
+    lang: Option<&str>,
+) -> anyhow::Result<ExitCode> {
     let Some(state) = dslp_engine::load(path, lang)? else {
         return no_scan(path, lang, json);
     };
@@ -151,7 +196,10 @@ pub fn cmd_findings(path: &Path, json: bool, limit: Option<usize>, lang: Option<
     if json {
         println!("{}", serde_json::to_string_pretty(&view)?);
     } else if view.is_empty() {
-        println!("No open issues. Lenient {:.1} / Strict {:.1}", state.score.lenient, state.score.strict);
+        println!(
+            "No open issues. Lenient {:.1} / Strict {:.1}",
+            state.score.lenient, state.score.strict
+        );
     } else {
         for issue in &view {
             print_issue_line(issue);
@@ -163,7 +211,12 @@ pub fn cmd_findings(path: &Path, json: bool, limit: Option<usize>, lang: Option<
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn cmd_plan(path: &Path, json: bool, limit: Option<usize>, lang: Option<&str>) -> anyhow::Result<ExitCode> {
+pub fn cmd_plan(
+    path: &Path,
+    json: bool,
+    limit: Option<usize>,
+    lang: Option<&str>,
+) -> anyhow::Result<ExitCode> {
     let Some(state) = dslp_engine::load(path, lang)? else {
         return no_scan(path, lang, json);
     };
@@ -175,7 +228,10 @@ pub fn cmd_plan(path: &Path, json: bool, limit: Option<usize>, lang: Option<&str
     if json {
         println!("{}", serde_json::to_string_pretty(&view)?);
     } else if view.is_empty() {
-        println!("No open issues. Lenient {:.1} / Strict {:.1}", state.score.lenient, state.score.strict);
+        println!(
+            "No open issues. Lenient {:.1} / Strict {:.1}",
+            state.score.lenient, state.score.strict
+        );
     } else {
         for entry in &view {
             println!(
@@ -223,18 +279,35 @@ pub fn cmd_backlog(path: &Path, json: bool, lang: Option<&str>) -> anyhow::Resul
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn cmd_badge(path: &Path, label: &str, lenient: bool, lang: Option<&str>) -> anyhow::Result<ExitCode> {
+pub fn cmd_badge(
+    path: &Path,
+    label: &str,
+    lenient: bool,
+    lang: Option<&str>,
+) -> anyhow::Result<ExitCode> {
     let Some(state) = dslp_engine::load(path, lang)? else {
-        println!("{}", serde_json::to_string_pretty(&dslp_engine::Badge::no_scan(label))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&dslp_engine::Badge::no_scan(label))?
+        );
         return Ok(ExitCode::from(1));
     };
-    let score = if lenient { state.score.lenient } else { state.score.strict };
+    let score = if lenient {
+        state.score.lenient
+    } else {
+        state.score.strict
+    };
     let badge = dslp_engine::Badge::from_score(score, label);
     println!("{}", serde_json::to_string_pretty(&badge)?);
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn cmd_resolve(path: &Path, lang: Option<&str>, fingerprint: &str, json: bool) -> anyhow::Result<ExitCode> {
+pub fn cmd_resolve(
+    path: &Path,
+    lang: Option<&str>,
+    fingerprint: &str,
+    json: bool,
+) -> anyhow::Result<ExitCode> {
     let res = dslp_engine::resolve(path, lang, fingerprint)?;
     if json {
         println!(
@@ -246,13 +319,22 @@ pub fn cmd_resolve(path: &Path, lang: Option<&str>, fingerprint: &str, json: boo
             }))?
         );
     } else {
-        println!("Resolved {} ({})", crate::output::short_fp(&res.issue.fingerprint), res.issue.detector);
+        println!(
+            "Resolved {} ({})",
+            crate::output::short_fp(&res.issue.fingerprint),
+            res.issue.detector
+        );
         print_score_line(&res.score);
     }
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn cmd_reopen(path: &Path, lang: Option<&str>, fingerprint: &str, json: bool) -> anyhow::Result<ExitCode> {
+pub fn cmd_reopen(
+    path: &Path,
+    lang: Option<&str>,
+    fingerprint: &str,
+    json: bool,
+) -> anyhow::Result<ExitCode> {
     let res = dslp_engine::reopen(path, lang, fingerprint)?;
     if json {
         println!(
@@ -264,13 +346,23 @@ pub fn cmd_reopen(path: &Path, lang: Option<&str>, fingerprint: &str, json: bool
             }))?
         );
     } else {
-        println!("Reopened {} ({})", crate::output::short_fp(&res.issue.fingerprint), res.issue.detector);
+        println!(
+            "Reopened {} ({})",
+            crate::output::short_fp(&res.issue.fingerprint),
+            res.issue.detector
+        );
         print_score_line(&res.score);
     }
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn cmd_suppress(path: &Path, lang: Option<&str>, fingerprint: &str, reason: &str, json: bool) -> anyhow::Result<ExitCode> {
+pub fn cmd_suppress(
+    path: &Path,
+    lang: Option<&str>,
+    fingerprint: &str,
+    reason: &str,
+    json: bool,
+) -> anyhow::Result<ExitCode> {
     let res = dslp_engine::suppress(path, lang, fingerprint, reason)?;
     if json {
         println!(
@@ -283,7 +375,12 @@ pub fn cmd_suppress(path: &Path, lang: Option<&str>, fingerprint: &str, reason: 
             }))?
         );
     } else {
-        println!("Suppressed {} ({}) — {}", crate::output::short_fp(&res.issue.fingerprint), res.issue.detector, reason);
+        println!(
+            "Suppressed {} ({}) — {}",
+            crate::output::short_fp(&res.issue.fingerprint),
+            res.issue.detector,
+            reason
+        );
         print_score_line(&res.score);
     }
     Ok(ExitCode::SUCCESS)
@@ -294,7 +391,10 @@ pub fn no_scan(path: &Path, lang: Option<&str>, json: bool) -> anyhow::Result<Ex
     if json {
         println!(r#"{{"error":"no_scan","message":"run `dslp scan` first"}}"#);
     } else {
-        eprintln!("No scan found at {}. Run `dslp scan` first.", state_path.display());
+        eprintln!(
+            "No scan found at {}. Run `dslp scan` first.",
+            state_path.display()
+        );
     }
     Ok(ExitCode::from(1))
 }

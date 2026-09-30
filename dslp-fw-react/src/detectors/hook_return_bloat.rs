@@ -129,9 +129,7 @@ fn last_return_object_field_count(body: Node) -> Option<usize> {
         }
     }
     let return_stmt = last?;
-    let arg = return_stmt
-        .named_children(&mut return_stmt.walk())
-        .next()?;
+    let arg = return_stmt.named_children(&mut return_stmt.walk()).next()?;
     if arg.kind() != "object" {
         return None;
     }
@@ -139,8 +137,11 @@ fn last_return_object_field_count(body: Node) -> Option<usize> {
     let mut cursor = arg.walk();
     for child in arg.named_children(&mut cursor) {
         match child.kind() {
-            "pair" | "method_definition" | "shorthand_property_identifier"
-            | "shorthand_property_identifier_pattern" | "spread_element"
+            "pair"
+            | "method_definition"
+            | "shorthand_property_identifier"
+            | "shorthand_property_identifier_pattern"
+            | "spread_element"
             | "computed_property_name" => count += 1,
             _ => {}
         }

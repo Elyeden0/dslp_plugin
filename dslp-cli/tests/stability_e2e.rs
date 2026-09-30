@@ -7,11 +7,17 @@ use std::process::{Command, Output};
 use common::{dslp_bin, fresh_dir};
 
 fn run(args: &[&str], dir: &std::path::Path) -> Output {
-    Command::new(dslp_bin()).args(args).current_dir(dir).output().unwrap()
+    Command::new(dslp_bin())
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .unwrap()
 }
 
 fn complex_rs() -> String {
-    let body: String = (0..12).map(|i| format!("    if x == {i} {{ return {i}; }}\n")).collect();
+    let body: String = (0..12)
+        .map(|i| format!("    if x == {i} {{ return {i}; }}\n"))
+        .collect();
     format!("fn helper(x: i32) -> i32 {{\n{body}    0\n}}\nfn main() {{ helper(1); }}\n")
 }
 
@@ -28,13 +34,22 @@ fn wontfix_survives_line_shift_and_metric_drift() {
         .as_str()
         .unwrap()
         .to_string();
-    assert!(run(&["suppress", &fp, "--reason", "ok"], &dir).status.success());
+    assert!(run(&["suppress", &fp, "--reason", "ok"], &dir)
+        .status
+        .success());
 
-    std::fs::write(dir.join("a.rs"), format!("// header\n{}", complex_rs().replace("0\n}", "1 + 1\n}"))).unwrap();
+    std::fs::write(
+        dir.join("a.rs"),
+        format!("// header\n{}", complex_rs().replace("0\n}", "1 + 1\n}")),
+    )
+    .unwrap();
     run(&["scan"], &dir);
     let backlog = json(&run(&["backlog", "--json"], &dir));
     assert_eq!(backlog.as_array().unwrap().len(), 1, "suppression was lost");
-    assert!(json(&run(&["findings", "--json"], &dir)).as_array().unwrap().is_empty());
+    assert!(json(&run(&["findings", "--json"], &dir))
+        .as_array()
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
@@ -52,7 +67,11 @@ fn path_spelling_does_not_split_history() {
 fn shared_extensions_count_loc_once() {
     let dir = fresh_dir("stab-loc");
     std::fs::write(dir.join("app.ts"), "export const x = 1;\n".repeat(10)).unwrap();
-    std::fs::write(dir.join("package.json"), r#"{"dependencies":{"react":"1","next":"1","nuxt":"1"}}"#).unwrap();
+    std::fs::write(
+        dir.join("package.json"),
+        r#"{"dependencies":{"react":"1","next":"1","nuxt":"1"}}"#,
+    )
+    .unwrap();
     let v = json(&run(&["scan", "--json"], &dir));
     assert_eq!(v["total_loc"], 10);
     assert_eq!(v["files_scanned"], 1);
@@ -64,7 +83,10 @@ fn unknown_lang_is_rejected_by_every_command() {
     for cmd in ["next", "score", "findings", "plan", "backlog", "badge"] {
         let out = run(&[cmd, "--lang", "klingon"], &dir);
         assert_eq!(out.status.code(), Some(2), "{cmd}");
-        assert!(String::from_utf8_lossy(&out.stderr).contains("unknown --lang"), "{cmd}");
+        assert!(
+            String::from_utf8_lossy(&out.stderr).contains("unknown --lang"),
+            "{cmd}"
+        );
     }
 }
 
@@ -73,10 +95,19 @@ fn reopen_undoes_suppress() {
     let dir = fresh_dir("stab-reopen");
     std::fs::write(dir.join("a.rs"), complex_rs()).unwrap();
     run(&["scan"], &dir);
-    let fp = json(&run(&["findings", "--json"], &dir))[0]["fingerprint"].as_str().unwrap().to_string();
+    let fp = json(&run(&["findings", "--json"], &dir))[0]["fingerprint"]
+        .as_str()
+        .unwrap()
+        .to_string();
     run(&["suppress", &fp, "--reason", "ok"], &dir);
     assert!(run(&["reopen", &fp], &dir).status.success());
-    assert_eq!(json(&run(&["findings", "--json"], &dir)).as_array().unwrap().len(), 1);
+    assert_eq!(
+        json(&run(&["findings", "--json"], &dir))
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 #[test]

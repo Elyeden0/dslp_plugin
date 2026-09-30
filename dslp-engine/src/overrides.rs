@@ -31,7 +31,15 @@ mod tests {
     use std::path::PathBuf;
 
     fn finding(detector: &str) -> Finding {
-        Finding::new(detector, Severity::Low, PathBuf::from("a"), None, "m", None, "s")
+        Finding::new(
+            detector,
+            Severity::Low,
+            PathBuf::from("a"),
+            None,
+            "m",
+            None,
+            "s",
+        )
     }
 
     #[test]
@@ -41,7 +49,12 @@ mod tests {
             ..Default::default()
         };
         let kept = apply(
-            vec![finding("ts.length"), finding("ts.empty-catch"), finding("rust.params"), finding("rust.length")],
+            vec![
+                finding("ts.length"),
+                finding("ts.empty-catch"),
+                finding("rust.params"),
+                finding("rust.length"),
+            ],
             &cfg,
         );
         let ids: Vec<_> = kept.iter().map(|f| f.detector.as_str()).collect();

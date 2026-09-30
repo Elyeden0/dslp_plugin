@@ -33,7 +33,13 @@ mod tests {
 
     #[test]
     fn does_not_fire_below_threshold() {
-        assert!(run(Path::new("a.c"), "int x(void) { return 0; }\n", "c.file-size", &cfg()).is_empty());
+        assert!(run(
+            Path::new("a.c"),
+            "int x(void) { return 0; }\n",
+            "c.file-size",
+            &cfg()
+        )
+        .is_empty());
     }
 
     #[test]

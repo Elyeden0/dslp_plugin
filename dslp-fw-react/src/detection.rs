@@ -24,7 +24,14 @@ fn check_package_json(project_root: &Path) -> Option<bool> {
     let path = project_root.join("package.json");
     let text = std::fs::read_to_string(&path).ok()?;
     let v: serde_json::Value = serde_json::from_str(&text).ok()?;
-    let frameworks = ["react", "react-dom", "next", "gatsby", "remix", "@remix-run/react"];
+    let frameworks = [
+        "react",
+        "react-dom",
+        "next",
+        "gatsby",
+        "remix",
+        "@remix-run/react",
+    ];
     let has = |key: &str| -> bool {
         v.get(key)
             .and_then(|m| m.as_object())

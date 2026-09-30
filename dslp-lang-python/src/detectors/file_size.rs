@@ -5,7 +5,8 @@ use dslp_core::Finding;
 use dslp_lang_common::{file_size, FileSizeText};
 
 const TEXT: FileSizeText = FileSizeText {
-    message_tail: "Consider splitting into a package or extracting cohesive units into their own modules.",
+    message_tail:
+        "Consider splitting into a package or extracting cohesive units into their own modules.",
     fix_hint: "Group related classes or functions into one module each, or split a \
                utilities grab-bag into focused submodules.",
 };
