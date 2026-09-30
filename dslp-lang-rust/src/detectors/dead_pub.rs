@@ -76,24 +76,14 @@ fn make_dead_pub_finding(path: &Path, kind: &str, name: &str, node: Node) -> Fin
 }
 
 /// Build the set of identifier-like tokens referenced anywhere in `tree`.
-/// Both declarations and uses contribute; a declaration alone won't keep an
-/// item alive, but any *non-decl* identifier reference will.
+/// A declaration's own name doesn't count as a reference to itself; any other
+/// identifier does.
 pub fn collect_references(source: &str, tree: &Tree) -> HashSet<String> {
     let mut set = HashSet::new();
-    let bytes = source.as_bytes();
-    walk_identifiers(tree.root_node(), bytes, &mut |ident, parent_kind, is_decl_name| {
-        // A declaration's *own* name shouldn't count as a reference to itself.
-        // Anything else does.
-        if is_decl_name {
-            return;
+    walk_identifiers(tree.root_node(), source.as_bytes(), &mut |ident| {
+        if !ident.is_empty() {
+            set.insert(ident.to_string());
         }
-        // Filter trivial keywords-as-identifiers (tree-sitter sometimes
-        // categorizes them) — none of these can name a pub item we care about.
-        if ident.is_empty() {
-            return;
-        }
-        let _ = parent_kind;
-        set.insert(ident.to_string());
     });
     set
 }
@@ -145,71 +135,32 @@ fn is_pub(node: Node) -> bool {
     false
 }
 
-fn walk_identifiers<'a, F: FnMut(&str, &'static str, bool)>(
-    node: Node<'a>,
-    bytes: &[u8],
-    f: &mut F,
-) {
-    let parent_kind = leak_kind(node.kind());
-    let is_decl = matches!(
-        node.kind(),
-        "function_item" | "struct_item" | "enum_item" | "trait_item"
-    );
+fn walk_identifiers<F: FnMut(&str)>(node: Node, bytes: &[u8], f: &mut F) {
     // Reference forms in tree-sitter-rust:
     //   `identifier`           — fns, locals, modules, etc.
     //   `type_identifier`      — types in usage position
     //   `field_identifier`     — `x.field` and `x.method(...)`
     //   `shorthand_field_identifier` — `Foo { x }` shorthand
-    let is_ident_kind = matches!(
+    if matches!(
         node.kind(),
         "identifier" | "type_identifier" | "field_identifier" | "shorthand_field_identifier"
-    );
-    if is_ident_kind {
+    ) {
         if let Ok(text) = node.utf8_text(bytes) {
-            // Heuristic: if our parent is a decl node *and* we're its `name`
-            // field, we're the decl's own name — skip. Refined below.
-            let is_decl_name = false;
-            f(text, parent_kind, is_decl_name);
+            f(text);
         }
     }
-    if is_decl {
-        // Skip the immediate `name` field — that's the decl's own name.
-        if let Some(name_node) = node.child_by_field_name("name") {
-            walk_identifiers_skipping(node, bytes, name_node, f);
-            return;
-        }
-    }
+    let own_name = if decl_kind_label(node.kind()).is_some() {
+        node.child_by_field_name("name").map(|n| n.id())
+    } else {
+        None
+    };
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        walk_identifiers(child, bytes, f);
-    }
-}
-
-fn walk_identifiers_skipping<'a, F: FnMut(&str, &'static str, bool)>(
-    node: Node<'a>,
-    bytes: &[u8],
-    skip: Node<'a>,
-    f: &mut F,
-) {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.id() == skip.id() {
-            continue;
+        if Some(child.id()) != own_name {
+            walk_identifiers(child, bytes, f);
         }
-        walk_identifiers(child, bytes, f);
     }
 }
-
-fn leak_kind(s: &str) -> &'static str {
-    // Tree-sitter kinds are static strings already; the API returns them as
-    // `&str` without a static bound but the underlying memory is in fact static.
-    // We need a `&'static str` for the closure signature. SAFE: tree-sitter
-    // grammar strings are program-lifetime. If that ever changes, swap to
-    // owned `String`.
-    let p: *const str = s;
-    unsafe { &*p }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
