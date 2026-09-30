@@ -59,6 +59,11 @@ pub enum Command {
         /// scan (never fails the first scan, which has nothing to compare to)
         #[arg(long, default_value_t = false)]
         fail_on_new: bool,
+        /// Report only on files changed since this git revision (plus untracked files).
+        /// The whole project is still analysed so cross-file detectors stay correct;
+        /// issues in unchanged files are carried over as they were
+        #[arg(long, value_name = "REV")]
+        since: Option<String>,
     },
     /// Write a starter .dslp/config.toml and ignore .dslp/ in .gitignore
     Init {

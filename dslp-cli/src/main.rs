@@ -59,12 +59,20 @@ fn dispatch(command: Command, plugins: Vec<Box<dyn LanguagePlugin>>) -> anyhow::
             json,
             fail_under,
             fail_on_new,
+            since,
         } => {
             let gate = ScanGate {
                 fail_under,
                 fail_on_new,
             };
-            cmd_scan(&target.path(), plugins, json, target.lang(), gate)
+            cmd_scan(
+                &target.path(),
+                plugins,
+                json,
+                target.lang(),
+                gate,
+                since.as_deref(),
+            )
         }
         Command::Init { target } => cmd_init(&target.path()),
         Command::Query(q) => dispatch_query(q),

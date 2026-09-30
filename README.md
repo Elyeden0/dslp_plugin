@@ -57,6 +57,9 @@ dslp reopen <fingerprint> --path /path/to/project
 # CI gating: exit 1 if strict < 80, or if this scan found new/regressed issues
 dslp scan --fail-under 80 --fail-on-new --path .
 
+# PR-style scan: report only on files changed since a git revision
+dslp scan --since origin/main --fail-on-new --path .
+
 # Monorepo: score one language independently of the others under the same --path
 dslp scan --lang go --path /path/to/monorepo
 dslp findings --lang go --path /path/to/monorepo
@@ -84,7 +87,9 @@ dslp plan --json --path .   # array of { file, penalty, issue_count, highest_sev
 dslp backlog --json --path .   # array of wontfix Issues
 ```
 
-`--fail-on-new` compares against the previous scan's state, so it only has something to compare to where `.dslp/` persists between runs (e.g. a cached CI directory); the first scan never fails it. Add `.dslp/` to your `.gitignore`. State persists across runs so progress carries over.
+`--fail-on-new` compares against the previous scan's state, so it only has something to compare to where `.dslp/` persists between runs (e.g. a cached CI directory); the first scan never fails it. `--since <rev>` still analyses the whole project (cross-file detectors like `rust.dead-pub-*`, `ts.dead-export` and `dup.block` need the full corpus) but only *reports* on files that differ from `<rev>` in the working tree, plus untracked files; issues in every other file are carried over exactly as they were. Findings in unchanged files that a change elsewhere caused are not seen until the next full scan.
+
+Add `.dslp/` to your `.gitignore`. State persists across runs so progress carries over.
 
 ## What it detects
 

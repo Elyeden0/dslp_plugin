@@ -317,3 +317,85 @@ fn ts_dead_exports_are_flagged_except_in_libraries_and_convention_files() {
         "library packages export their API on purpose"
     );
 }
+
+fn git(dir: &std::path::Path, args: &[&str]) {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(["-c", "user.name=t", "-c", "user.email=t@t"])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// Same shape as `complex_rs` but with different lines, so the duplicate
+/// detector doesn't (correctly) flag the fixtures against each other.
+fn complex_rs_variant(name: &str, salt: u32) -> String {
+    complex_rs(name).replace("return ", &format!("return {salt} + "))
+}
+
+fn open_files(dir: &std::path::Path) -> Vec<String> {
+    let v: serde_json::Value =
+        serde_json::from_slice(&run(&["findings", "--json"], dir).stdout).unwrap();
+    let mut files: Vec<String> = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["file"].as_str().unwrap().to_string())
+        .collect();
+    files.sort();
+    files
+}
+
+#[test]
+fn since_reports_only_changed_files_and_keeps_the_rest_untouched() {
+    let dir = fresh_dir("since");
+    git(&dir, &["init", "-q"]);
+    std::fs::write(dir.join("a.rs"), complex_rs("alpha")).unwrap();
+    std::fs::write(dir.join("b.rs"), complex_rs_variant("beta", 1000)).unwrap();
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-qm", "init"]);
+    run(&["scan"], &dir);
+    assert_eq!(open_files(&dir), ["a.rs", "b.rs"]);
+
+    // b.rs is fixed and c.rs is new; a.rs is untouched.
+    std::fs::write(dir.join("b.rs"), "fn main() {}\n").unwrap();
+    std::fs::write(dir.join("c.rs"), complex_rs_variant("gamma", 2000)).unwrap();
+    let out = run(&["scan", "--since", "HEAD"], &dir);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout(&out).contains("changed since HEAD"),
+        "{}",
+        stdout(&out)
+    );
+    assert_eq!(
+        open_files(&dir),
+        ["a.rs", "c.rs"],
+        "a.rs kept, b.rs resolved, c.rs new"
+    );
+
+    let bad = run(&["scan", "--since", "no-such-rev"], &dir);
+    assert_eq!(bad.status.code(), Some(2));
+}
+
+#[test]
+fn since_does_not_resolve_issues_in_files_it_did_not_report_on() {
+    let dir = fresh_dir("since-keep");
+    git(&dir, &["init", "-q"]);
+    std::fs::write(dir.join("a.rs"), complex_rs("alpha")).unwrap();
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-qm", "init"]);
+    run(&["scan"], &dir);
+    // Nothing changed since HEAD: a partial scan must leave a.rs's issue open.
+    run(&["scan", "--since", "HEAD"], &dir);
+    assert_eq!(open_files(&dir), ["a.rs"]);
+}

@@ -2,6 +2,7 @@
 
 mod config;
 mod discovery;
+mod git;
 mod parser;
 
 pub use config::{
@@ -9,4 +10,5 @@ pub use config::{
     DuplicatesConfig, FileSizeConfig, LanguageOverride, ScanConfig, SlopConfig,
 };
 pub use discovery::discover_files;
+pub use git::changed_files;
 pub use parser::parse;

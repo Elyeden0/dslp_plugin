@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use chrono::Utc;
 use dslp_base::{discover_files, load_config, Config};
-use dslp_core::{FileHandle, Finding, LanguagePlugin};
+use dslp_core::{FileHandle, Finding, Issue, LanguagePlugin};
 use rayon::prelude::*;
 
 use crate::delta::{delta, ScanDelta};
@@ -26,10 +26,16 @@ pub struct ScanReport {
 /// `lang` scopes the scan to a single plugin's state file
 /// (`.dslp/state-<lang>.json`) instead of the shared `.dslp/state.json` —
 /// `plugins` must already be filtered to just that plugin by the caller.
+///
+/// `only` restricts *reporting* to those project-relative files: the whole
+/// project is still analysed (cross-file detectors need the full corpus), but
+/// findings elsewhere are dropped and the previous issues for files outside
+/// `only` are carried over untouched instead of being marked resolved.
 pub fn run_scan(
     project_root: &Path,
     plugins: &[Box<dyn LanguagePlugin>],
     lang: Option<&str>,
+    only: Option<&HashSet<PathBuf>>,
 ) -> anyhow::Result<ScanReport> {
     let config = load_config(project_root)?;
     let cfg_value = serde_json::to_value(&config)?;
@@ -81,10 +87,13 @@ pub fn run_scan(
             plugin.scan(&ctx, handles)
         })
         .collect();
-    let all_findings = disambiguate(crate::overrides::apply(
+    let mut all_findings = disambiguate(crate::overrides::apply(
         per_plugin.into_iter().flatten().collect(),
         &config.detectors,
     ));
+    if let Some(only) = only {
+        all_findings.retain(|f| only.contains(&f.file));
+    }
 
     let now = Utc::now();
     let prev = load(project_root, lang)?;
@@ -99,6 +108,9 @@ pub fn run_scan(
         if let Some(reason) = ignored.get(&issue.fingerprint) {
             issue.suppress(reason.clone(), now);
         }
+    }
+    if let (Some(only), Some(prev)) = (only, prev.as_ref()) {
+        restore_out_of_scope(&mut issues, prev, only);
     }
     let delta = delta(prev.as_ref(), &issues);
     let score = score_issues(&issues, total_loc);
@@ -116,6 +128,22 @@ pub fn run_scan(
         files_scanned,
         delta,
     })
+}
+
+/// Put back the previous version of every issue outside `only`: the merge
+/// treats anything not re-detected as resolved, which is wrong for files a
+/// partial scan never reported on.
+fn restore_out_of_scope(issues: &mut [Issue], prev: &State, only: &HashSet<PathBuf>) {
+    let before: HashMap<&str, &Issue> = prev
+        .issues
+        .iter()
+        .map(|i| (i.fingerprint.as_str(), i))
+        .collect();
+    for issue in issues.iter_mut().filter(|i| !only.contains(&i.file)) {
+        if let Some(old) = before.get(issue.fingerprint.as_str()) {
+            *issue = (*old).clone();
+        }
+    }
 }
 
 fn claims(extensions: &[&str], path: &Path) -> bool {
@@ -143,6 +171,44 @@ fn disambiguate(findings: Vec<Finding>) -> Vec<Finding> {
 mod tests {
     use super::*;
     use dslp_core::Severity;
+
+    #[test]
+    fn restore_out_of_scope_keeps_previous_status_outside_the_scope() {
+        use crate::state::merge_issues;
+        let mk = |file: &str| {
+            Finding::new(
+                "d",
+                Severity::Low,
+                PathBuf::from(file),
+                None,
+                "m",
+                None,
+                "s",
+            )
+        };
+        let now = chrono::Utc::now();
+        let prev = State {
+            version: STATE_VERSION,
+            last_scan: now,
+            score: dslp_core::Score::perfect(),
+            issues: merge_issues(None, vec![mk("in.rs"), mk("out.rs")], now),
+        };
+        // A partial scan that reported nothing: the merge resolves both.
+        let mut issues = merge_issues(Some(&prev), vec![], now);
+        assert!(issues.iter().all(|i| i.status.is_resolved()));
+        let only = HashSet::from([PathBuf::from("in.rs")]);
+        restore_out_of_scope(&mut issues, &prev, &only);
+        let status = |file: &str| {
+            issues
+                .iter()
+                .find(|i| i.file == Path::new(file))
+                .unwrap()
+                .status
+                .clone()
+        };
+        assert!(status("in.rs").is_resolved(), "in scope: really gone");
+        assert!(status("out.rs").is_open(), "out of scope: untouched");
+    }
 
     #[test]
     fn disambiguate_makes_duplicate_fingerprints_unique() {

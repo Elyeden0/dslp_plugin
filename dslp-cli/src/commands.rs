@@ -38,6 +38,7 @@ pub fn cmd_scan(
     json: bool,
     lang: Option<&str>,
     gate: ScanGate,
+    since: Option<&str>,
 ) -> anyhow::Result<ExitCode> {
     let config = dslp_base::load_config(path)?;
     if let Some(bad) = config
@@ -56,7 +57,10 @@ pub fn cmd_scan(
         Some(id) => plugins.into_iter().filter(|p| p.id() == id).collect(),
         None => plugins,
     };
-    let report = dslp_engine::run_scan(path, &selected, lang)?;
+    let changed = since
+        .map(|rev| dslp_base::changed_files(path, rev))
+        .transpose()?;
+    let report = dslp_engine::run_scan(path, &selected, lang, changed.as_ref())?;
     let score = &report.state.score;
     if json {
         let payload = serde_json::json!({
@@ -73,6 +77,12 @@ pub fn cmd_scan(
             "Scanned {} file(s), {} LoC",
             report.files_scanned, report.total_loc
         );
+        if let (Some(rev), Some(changed)) = (since, &changed) {
+            println!(
+                "Reporting on {} file(s) changed since {rev}.",
+                changed.len()
+            );
+        }
         print_score_line(score);
         print_delta_line(&report.delta, score.strict);
     }
