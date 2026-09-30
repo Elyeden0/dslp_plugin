@@ -98,26 +98,31 @@ fn is_assignment(text: &str) -> bool {
             .all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '[' | ']'))
 }
 
-fn finding(
-    path: &Path,
-    lang: &str,
-    id: &str,
-    sev: Severity,
+/// What a comment detector found, before it becomes a [`Finding`].
+struct Hit<'a> {
+    id: &'a str,
     from: u32,
     to: u32,
-    msg: String,
-    hint: &str,
-    key: &str,
-) -> Finding {
-    Finding::new(
-        format!("{lang}.{id}"),
-        sev,
-        path.to_path_buf(),
-        Some(Span::new(Position::new(from, 0), Position::new(to, 0))),
-        msg,
-        Some(hint.to_string()),
-        key,
-    )
+    message: String,
+    hint: &'a str,
+    key: String,
+}
+
+impl Hit<'_> {
+    fn into_finding(self, path: &Path, lang: &str) -> Finding {
+        Finding::new(
+            format!("{lang}.{}", self.id),
+            Severity::Low,
+            path.to_path_buf(),
+            Some(Span::new(
+                Position::new(self.from, 0),
+                Position::new(self.to, 0),
+            )),
+            self.message,
+            Some(self.hint.to_string()),
+            &self.key,
+        )
+    }
 }
 
 pub fn run(path: &Path, source: &str, lang: &str, marker: &str) -> Vec<Finding> {
@@ -138,12 +143,17 @@ pub fn run(path: &Path, source: &str, lang: &str, marker: &str) -> Vec<Finding> 
         if j - i >= MIN_CODE_RUN {
             in_code_run[i..j].iter_mut().for_each(|b| *b = true);
             let first = lines[i].comment.unwrap_or_default();
-            out.push(finding(
-                path, lang, "commented-code", Severity::Low, lines[i].no, lines[j - 1].no,
-                format!("{} consecutive comment lines look like commented-out code.", j - i),
-                "Delete it — version control already remembers old code. If it documents an alternative, describe it in prose.",
-                &format!("commented-code:{first}"),
-            ));
+            out.push(
+                Hit {
+                    id: "commented-code",
+                    from: lines[i].no,
+                    to: lines[j - 1].no,
+                    message: format!("{} consecutive comment lines look like commented-out code.", j - i),
+                    hint: "Delete it — version control already remembers old code. If it documents an alternative, describe it in prose.",
+                    key: format!("commented-code:{first}"),
+                }
+                .into_finding(path, lang),
+            );
         }
         i = j.max(i + 1);
     }
@@ -155,17 +165,17 @@ pub fn run(path: &Path, source: &str, lang: &str, marker: &str) -> Vec<Finding> 
             continue;
         }
         if restates(text, next.raw) {
-            out.push(finding(
-                path,
-                lang,
-                "obvious-comment",
-                Severity::Low,
-                c.no,
-                c.no,
-                format!("Comment `{text}` only restates the code below it."),
-                "Delete it, or say *why* the code does this rather than *what* it does.",
-                &format!("obvious-comment:{}", next.raw.trim()),
-            ));
+            out.push(
+                Hit {
+                    id: "obvious-comment",
+                    from: c.no,
+                    to: c.no,
+                    message: format!("Comment `{text}` only restates the code below it."),
+                    hint: "Delete it, or say *why* the code does this rather than *what* it does.",
+                    key: format!("obvious-comment:{}", next.raw.trim()),
+                }
+                .into_finding(path, lang),
+            );
         }
     }
     out
