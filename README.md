@@ -9,8 +9,6 @@ A Rust port of the analyse → score → "what to fix" core of [desloppify](http
 - **Workflow:** issues persist between scans; you resolve, suppress (or `dslp-ignore` in code) and reopen them, and a *lenient vs strict* score keeps dismissals honest.
 - **CI:** `--fail-under`, `--fail-on-new`, `--since <rev>`, SARIF output, a shields.io badge, and per-language scoping for monorepos.
 
-Design docs: [rust-port design](docs/superpowers/specs/2026-05-01-rust-port-design.md) and [workflow loop design](docs/superpowers/specs/2026-05-29-workflow-loop-design.md) (including what's deliberately deferred).
-
 ## Install
 
 Requires a Rust toolchain (`rust-version = 1.78` in `Cargo.toml`).
