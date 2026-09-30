@@ -171,6 +171,12 @@ Drop a `.dslp/config.toml` in your project root:
 [scan]
 exclude = ["target/", "node_modules/", "vendor/"]
 
+[detectors]
+disable = ["rust.dead-pub-fn", "ts.*"]   # exact ids, or a family with a trailing .*
+
+[detectors.severity]
+"rust.params" = "medium"                 # low | medium | high | critical
+
 [detectors.file_size]
 threshold = 400
 severity_at = 600

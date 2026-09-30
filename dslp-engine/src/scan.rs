@@ -71,7 +71,10 @@ pub fn run_scan(
             plugin.scan(&ctx, handles)
         })
         .collect();
-    let all_findings = disambiguate(per_plugin.into_iter().flatten().collect());
+    let all_findings = disambiguate(crate::overrides::apply(
+        per_plugin.into_iter().flatten().collect(),
+        &config.detectors,
+    ));
 
     let now = Utc::now();
     let prev = load(project_root, lang)?;

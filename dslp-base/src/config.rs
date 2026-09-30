@@ -1,5 +1,7 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 
+use dslp_core::Severity;
 use serde::{Deserialize, Serialize};
 
 /// User-facing config loaded from `.dslp/config.toml`.
@@ -21,6 +23,11 @@ pub struct ScanConfig {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct DetectorsConfig {
+    /// Detector ids to turn off; a trailing `.*` matches a whole family
+    /// (`"ts.*"`).
+    pub disable: Vec<String>,
+    /// Per-detector severity overrides, e.g. `"rust.params" = "medium"`.
+    pub severity: BTreeMap<String, Severity>,
     pub file_size: FileSizeConfig,
     pub complexity: ComplexityConfig,
     pub dead_pub: DeadPubConfig,
@@ -120,6 +127,20 @@ mod tests {
     fn default_toml_round_trips_to_defaults() {
         let parsed: Config = toml::from_str(&default_config_toml().unwrap()).unwrap();
         assert_eq!(parsed, Config::default());
+    }
+
+    #[test]
+    fn disable_and_severity_overrides_parse() {
+        let dir = tmpdir("overrides");
+        fs::create_dir_all(dir.join(".dslp")).unwrap();
+        fs::write(
+            dir.join(".dslp/config.toml"),
+            "[detectors]\ndisable = [\"ts.*\"]\n[detectors.severity]\n\"rust.params\" = \"high\"\n",
+        )
+        .unwrap();
+        let cfg = load_config(&dir).unwrap();
+        assert_eq!(cfg.detectors.disable, ["ts.*"]);
+        assert_eq!(cfg.detectors.severity["rust.params"], Severity::High);
     }
 
     #[test]

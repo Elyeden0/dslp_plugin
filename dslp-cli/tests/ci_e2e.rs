@@ -84,3 +84,19 @@ fn show_displays_wontfix_reason() {
     let out = stdout(&run(&["show", &fp[..8]], &dir));
     assert!(out.contains("wontfix") && out.contains("legacy parser"), "{out}");
 }
+
+#[test]
+fn config_can_disable_detectors_and_override_severity() {
+    let dir = fresh_dir("cfg-overrides");
+    std::fs::write(dir.join("a.rs"), complex_rs("helper")).unwrap();
+    std::fs::create_dir_all(dir.join(".dslp")).unwrap();
+    std::fs::write(dir.join(".dslp/config.toml"), "[detectors.severity]\n\"rust.complexity\" = \"critical\"\n").unwrap();
+    run(&["scan"], &dir);
+    let v: serde_json::Value = serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
+    assert_eq!(v[0]["severity"], "critical");
+
+    std::fs::write(dir.join(".dslp/config.toml"), "[detectors]\ndisable = [\"rust.*\"]\n").unwrap();
+    run(&["scan"], &dir);
+    let v: serde_json::Value = serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
+    assert!(v.as_array().unwrap().is_empty());
+}

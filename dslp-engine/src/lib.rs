@@ -4,6 +4,7 @@ mod backlog;
 mod badge;
 mod delta;
 mod ops;
+mod overrides;
 mod plan;
 mod queue;
 mod scan;
