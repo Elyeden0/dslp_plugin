@@ -38,6 +38,7 @@ pub struct FileSizeConfig {
 pub struct ComplexityConfig {
     pub cyclomatic_threshold: u32,
     pub length_threshold: u32,
+    pub param_threshold: u32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -68,6 +69,7 @@ impl Default for ComplexityConfig {
         Self {
             cyclomatic_threshold: 10,
             length_threshold: 50,
+            param_threshold: 6,
         }
     }
 }

@@ -83,6 +83,43 @@ pub fn finding_at_node(
     )
 }
 
+/// Declared parameters in a `parameters` node, ignoring comments and Rust's
+/// `self` receiver.
+pub fn param_count(params: Node) -> u32 {
+    let mut cursor = params.walk();
+    params
+        .named_children(&mut cursor)
+        .filter(|n| !matches!(n.kind(), "comment" | "self_parameter"))
+        .count() as u32
+}
+
+/// A Low-severity "too many parameters" finding when `count >= threshold`.
+pub fn params_finding(
+    path: &Path,
+    fn_node: Node,
+    detector: &'static str,
+    name: &str,
+    count: u32,
+    threshold: u32,
+) -> Option<Finding> {
+    (count >= threshold).then(|| {
+        finding_at_node(
+            path,
+            fn_node,
+            detector,
+            Severity::Low,
+            format!(
+                "Function `{}` takes {} parameters (threshold {}). Long parameter lists \
+                 usually mean a missing type.",
+                name, count, threshold
+            ),
+            "Group related parameters into a struct/object/dataclass, or split the \
+             function so each part needs fewer inputs.",
+            &format!("{detector}:{name}"),
+        )
+    })
+}
+
 /// Per-language wording for the generic file-size detector.
 pub struct FileSizeText {
     /// Appended after "File has N lines (threshold: T). " — e.g.

@@ -113,6 +113,7 @@ mod tests {
         ComplexityConfig {
             cyclomatic_threshold: 4,
             length_threshold: 8,
+            param_threshold: 3,
         }
     }
 

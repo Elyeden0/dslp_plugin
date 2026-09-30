@@ -8,7 +8,7 @@ use std::path::Path;
 
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
-use dslp_lang_common::{cyclomatic, finding_at_node, node_length_lines};
+use dslp_lang_common::{cyclomatic, finding_at_node, node_length_lines, param_count, params_finding};
 use tree_sitter::{Node, Tree};
 
 /// `switch_case` = each `case` is a path (`default` is `switch_default`,
@@ -68,6 +68,8 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
                 &format!("ts.length:{}", name),
             ));
         }
+        let params = fn_node.child_by_field_name("parameters").map_or(0, param_count);
+        out.extend(params_finding(path, fn_node, "ts.params", name, params, cfg.param_threshold));
     });
     out
 }
@@ -120,6 +122,7 @@ mod tests {
         ComplexityConfig {
             cyclomatic_threshold: 4,
             length_threshold: 8,
+            param_threshold: 3,
         }
     }
 
@@ -180,5 +183,13 @@ const tangle = (x: number): number => {
         let t = parse("typescript", &src);
         let r = run(Path::new("a.ts"), &src, &t, &cfg());
         assert!(r.iter().any(|f| f.detector == "ts.length"), "got: {:?}", r);
+    }
+
+    #[test]
+    fn many_params_fire() {
+        let src = "function f(a, b, c) {}";
+        let t = parse("javascript", src);
+        let r = run(Path::new("a.js"), src, &t, &cfg());
+        assert!(r.iter().any(|f| f.detector == "ts.params"), "got: {:?}", r);
     }
 }

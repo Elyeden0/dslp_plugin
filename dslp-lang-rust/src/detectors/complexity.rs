@@ -2,7 +2,7 @@ use std::path::Path;
 
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
-use dslp_lang_common::{cyclomatic, finding_at_node, node_length_lines};
+use dslp_lang_common::{cyclomatic, finding_at_node, node_length_lines, param_count, params_finding};
 use tree_sitter::{Node, Tree};
 
 /// Rust decision-point node kinds for cyclomatic complexity.
@@ -59,6 +59,8 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
                 &format!("length:{}", name),
             ));
         }
+        let params = fn_node.child_by_field_name("parameters").map_or(0, param_count);
+        out.extend(params_finding(path, fn_node, "rust.params", name, params, cfg.param_threshold));
     });
     out
 }
@@ -89,6 +91,7 @@ mod tests {
         ComplexityConfig {
             cyclomatic_threshold: 4,
             length_threshold: 8,
+            param_threshold: 3,
         }
     }
 
@@ -127,5 +130,15 @@ fn tangle(x: i32) -> i32 {
         let t = parse(&src);
         let r = run(Path::new("a.rs"), &src, &t, &cfg());
         assert!(r.iter().any(|f| f.detector == "rust.length"), "got: {:?}", r);
+    }
+
+    #[test]
+    fn many_params_fire_but_self_is_free() {
+        let many = "fn f(a: i32, b: i32, c: i32) {}";
+        let r = run(Path::new("a.rs"), many, &parse(many), &cfg());
+        assert!(r.iter().any(|f| f.detector == "rust.params"), "got: {:?}", r);
+        let method = "impl S { fn f(&self, a: i32, b: i32) {} }";
+        let r = run(Path::new("a.rs"), method, &parse(method), &cfg());
+        assert!(r.iter().all(|f| f.detector != "rust.params"), "got: {:?}", r);
     }
 }

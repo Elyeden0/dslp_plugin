@@ -85,6 +85,7 @@ dslp backlog --json --path .   # array of wontfix Issues
 | `rust.file-size` | Files over 400 lines (configurable). Severity bumps to High at 600. |
 | `rust.complexity` | Functions with cyclomatic complexity ≥ 10 (counts `if`, `match` arms, loops, `?`, `&&`, `\|\|`). |
 | `rust.length` | Functions ≥ 50 lines. Low severity. |
+| `rust.params` | Functions with ≥ 6 parameters (the `self` receiver is free). Low severity. |
 | `rust.dead-pub-fn` / `-struct` / `-enum` / `-trait` | Public items whose name isn't referenced anywhere in the corpus. Low severity (heuristic — false positives possible on macro-generated or trait-dispatched code). |
 
 ### TypeScript / JavaScript (`.ts`, `.tsx`, `.js`, `.jsx`, `.cjs`, `.mjs`)
@@ -94,6 +95,7 @@ dslp backlog --json --path .   # array of wontfix Issues
 | `ts.file-size` | Files over the threshold (same configurable thresholds as Rust). |
 | `ts.complexity` | Functions / arrow functions / methods with cyclomatic complexity ≥ 10. Counts `if`, `for`, `while`, `do`, `switch case`, `?:`, `catch`, `&&`, `\|\|`, `??`. |
 | `ts.length` | Functions ≥ 50 lines. Low severity. |
+| `ts.params` | Functions with ≥ 6 parameters. Low severity. |
 
 A "dead-export" detector for TS/JS is intentionally not in this slice — the TS module system (default exports, re-exports, dynamic imports, JSX references) needs its own design pass.
 
@@ -104,6 +106,7 @@ A "dead-export" detector for TS/JS is intentionally not in this slice — the TS
 | `go.file-size` | Files over the threshold. |
 | `go.complexity` | Functions and methods with cyclomatic complexity ≥ 10. Counts `if`, `for`, switch `expression_case` / `default_case`, `select` `communication_case`, type-switch `type_case`, plus `&&` / `\|\|`. |
 | `go.length` | Functions ≥ 50 lines. Low severity. |
+| `go.params` | Functions with ≥ 6 parameters (`a, b int` counts as two). Low severity. |
 
 ### Python (`.py`, `.pyi`)
 
@@ -112,6 +115,7 @@ A "dead-export" detector for TS/JS is intentionally not in this slice — the TS
 | `python.file-size` | Files over the threshold. |
 | `python.complexity` | Functions / methods (including nested defs) with cyclomatic complexity ≥ 10. Counts `if`, `elif`, `for`, `while`, `except`, `match` `case`, conditional expressions (`x if c else y`), plus `and` / `or`. |
 | `python.length` | Functions ≥ 50 lines. Low severity. |
+| `python.params` | Functions with ≥ 6 parameters (`self`/`cls` are free). Low severity. |
 
 ### C (`.c`, `.h`)
 
@@ -168,6 +172,7 @@ severity_at = 600
 [detectors.complexity]
 cyclomatic_threshold = 10
 length_threshold = 50
+param_threshold = 6
 
 [detectors.dead_pub]
 ignore_paths = ["src/lib.rs"]

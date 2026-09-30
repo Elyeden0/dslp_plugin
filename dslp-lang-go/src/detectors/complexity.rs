@@ -5,7 +5,7 @@ use std::path::Path;
 
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
-use dslp_lang_common::{cyclomatic, finding_at_node, node_length_lines};
+use dslp_lang_common::{cyclomatic, finding_at_node, node_length_lines, params_finding};
 use tree_sitter::{Node, Tree};
 
 /// Go decision-point kinds: switch `expression_case`/`default_case`, select
@@ -62,8 +62,19 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
                 &format!("go.length:{}", name),
             ));
         }
+        let params = fn_node.child_by_field_name("parameters").map_or(0, go_param_count);
+        out.extend(params_finding(path, fn_node, "go.params", name, params, cfg.param_threshold));
     });
     out
+}
+
+/// Go declares several parameters per entry (`a, b int`), so count names.
+fn go_param_count(params: Node) -> u32 {
+    let mut cursor = params.walk();
+    params
+        .named_children(&mut cursor)
+        .map(|decl| decl.children_by_field_name("name", &mut decl.walk()).count().max(1) as u32)
+        .sum()
 }
 
 fn walk_functions<'a, F: FnMut(Node<'a>, &str)>(node: Node<'a>, bytes: &[u8], f: &mut F) {
@@ -88,6 +99,7 @@ mod tests {
         ComplexityConfig {
             cyclomatic_threshold: 4,
             length_threshold: 8,
+            param_threshold: 3,
         }
     }
 
@@ -168,5 +180,12 @@ func (f *Foo) tangle(x int) int {
         let t = parse(src);
         let r = run(Path::new("a.go"), src, &t, &cfg());
         assert!(r.iter().any(|f| f.detector == "go.complexity"), "got: {:?}", r);
+    }
+
+    #[test]
+    fn grouped_params_are_counted_by_name() {
+        let src = "package p\n\nfunc f(a, b, c int) {}\n";
+        let r = run(Path::new("a.go"), src, &parse(src), &cfg());
+        assert!(r.iter().any(|f| f.detector == "go.params"), "got: {:?}", r);
     }
 }
