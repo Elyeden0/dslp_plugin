@@ -7,8 +7,10 @@ use serde::{Deserialize, Serialize};
 use dslp_core::{Finding, Issue, Score};
 
 /// Current on-disk schema version. Bumped to 2 when `Issue.resolved: bool`
-/// became `Issue.status: Status`. Older state is discarded on load.
-pub const STATE_VERSION: u32 = 2;
+/// became `Issue.status: Status`, and to 3 when fingerprints stopped hashing
+/// line numbers and measured values (v2 fingerprints never match again).
+/// Older state is discarded on load.
+pub const STATE_VERSION: u32 = 3;
 
 /// Resolved issues that stay undetected this long are dropped from state, so
 /// it doesn't grow without bound. A later re-detection is then a new issue.
@@ -307,6 +309,22 @@ mod tests {
         assert_eq!(loaded_default.issues[0].file, PathBuf::from("a.rs"));
         assert_eq!(loaded_go.issues[0].file, PathBuf::from("a.go"));
         assert!(load(&dir, Some("typescript")).unwrap().is_none());
+    }
+
+    #[test]
+    fn v2_state_is_discarded_on_load() {
+        let dir = std::env::temp_dir().join(format!(
+            "dslp-engine-state-v2-discard-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(".dslp")).unwrap();
+        std::fs::write(
+            dir.join(".dslp/state.json"),
+            r#"{"version":2,"last_scan":"2026-05-01T20:00:00Z","score":{},"issues":[]}"#,
+        )
+        .unwrap();
+        assert!(load(&dir, None).unwrap().is_none());
     }
 
     #[test]
