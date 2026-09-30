@@ -6,7 +6,8 @@ use std::path::Path;
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
 use dslp_lang_common::{
-    cyclomatic, finding_at_node, node_length_lines, param_count, params_finding,
+    cyclomatic, finding_at_node, max_nesting, nesting_finding, node_length_lines, param_count,
+    params_finding,
 };
 use tree_sitter::{Node, Tree};
 
@@ -24,6 +25,18 @@ const DECISION_KINDS: &[&str] = &[
     "and",
     "or",
 ];
+
+/// Control-flow nodes that add a nesting level.
+const NESTING_KINDS: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "while_statement",
+    "try_statement",
+    "with_statement",
+    "match_statement",
+];
+/// Parents whose `if` child is an `else if`, not a deeper level.
+const ELSE_PARENTS: &[&str] = &[];
 
 pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Vec<Finding> {
     let mut out = Vec::new();
@@ -76,6 +89,15 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
             params,
             cfg.param_threshold,
         ));
+        let depth = max_nesting(body, NESTING_KINDS, ELSE_PARENTS);
+        out.extend(nesting_finding(
+            path,
+            fn_node,
+            "python.nesting",
+            name,
+            depth,
+            cfg.nesting_threshold,
+        ));
     });
     out
 }
@@ -112,6 +134,7 @@ mod tests {
             cyclomatic_threshold: 4,
             length_threshold: 8,
             param_threshold: 3,
+            nesting_threshold: 3,
         }
     }
 
@@ -224,6 +247,24 @@ def outer():
         let r = run(Path::new("a.py"), method, &parse(method), &cfg());
         assert!(
             r.iter().all(|f| f.detector != "python.params"),
+            "got: {:?}",
+            r
+        );
+    }
+
+    #[test]
+    fn deep_nesting_fires_but_elif_chains_do_not() {
+        let deep = "def f(x):\n    if x:\n        for i in x:\n            while i:\n                return\n";
+        let r = run(Path::new("a.py"), deep, &parse(deep), &cfg());
+        assert!(
+            r.iter().any(|f| f.detector == "python.nesting"),
+            "got: {:?}",
+            r
+        );
+        let flat = "def f(x):\n    if x == 1:\n        pass\n    elif x == 2:\n        pass\n    elif x == 3:\n        pass\n    elif x == 4:\n        pass\n";
+        let r = run(Path::new("a.py"), flat, &parse(flat), &cfg());
+        assert!(
+            r.iter().all(|f| f.detector != "python.nesting"),
             "got: {:?}",
             r
         );

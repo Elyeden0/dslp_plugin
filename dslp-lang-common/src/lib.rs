@@ -133,6 +133,50 @@ pub fn item_finding(
     )
 }
 
+/// Deepest chain of nested `kinds` nodes under `node`. An `else if` (a kind
+/// node directly inside one of `else_parents`) continues its chain instead of
+/// nesting deeper.
+pub fn max_nesting(node: Node, kinds: &[&str], else_parents: &[&str]) -> u32 {
+    let is_kind = kinds.contains(&node.kind());
+    let chained = is_kind
+        && node
+            .parent()
+            .is_some_and(|p| else_parents.contains(&p.kind()));
+    let own = u32::from(is_kind && !chained);
+    let mut cursor = node.walk();
+    let deepest = node
+        .children(&mut cursor)
+        .map(|c| max_nesting(c, kinds, else_parents))
+        .max()
+        .unwrap_or(0);
+    own + deepest
+}
+
+/// A Low-severity "deeply nested" finding when `depth >= threshold`.
+pub fn nesting_finding(
+    path: &Path,
+    fn_node: Node,
+    detector: &'static str,
+    name: &str,
+    depth: u32,
+    threshold: u32,
+) -> Option<Finding> {
+    (depth >= threshold).then(|| {
+        finding_at_node(
+            path,
+            fn_node,
+            detector,
+            Severity::Low,
+            format!(
+                "Function `{}` nests control flow {} levels deep (threshold {}).",
+                name, depth, threshold
+            ),
+            "Flatten with early returns/guard clauses, or extract the inner block into its own function.",
+            &format!("{detector}:{name}"),
+        )
+    })
+}
+
 /// Declared parameters in a `parameters` node, ignoring comments and Rust's
 /// `self` receiver.
 pub fn param_count(params: Node) -> u32 {

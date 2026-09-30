@@ -46,6 +46,7 @@ pub struct ComplexityConfig {
     pub cyclomatic_threshold: u32,
     pub length_threshold: u32,
     pub param_threshold: u32,
+    pub nesting_threshold: u32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -77,6 +78,7 @@ impl Default for ComplexityConfig {
             cyclomatic_threshold: 10,
             length_threshold: 50,
             param_threshold: 6,
+            nesting_threshold: 5,
         }
     }
 }

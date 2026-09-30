@@ -110,6 +110,7 @@ mod tests {
             cyclomatic_threshold: 4,
             length_threshold: 8,
             param_threshold: 3,
+            nesting_threshold: 3,
         }
     }
 

@@ -9,7 +9,8 @@ use std::path::Path;
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
 use dslp_lang_common::{
-    cyclomatic, finding_at_node, node_length_lines, param_count, params_finding,
+    cyclomatic, finding_at_node, max_nesting, nesting_finding, node_length_lines, param_count,
+    params_finding,
 };
 use tree_sitter::{Node, Tree};
 
@@ -29,6 +30,19 @@ const DECISION_KINDS: &[&str] = &[
     "||",
     "??",
 ];
+
+/// Control-flow nodes that add a nesting level.
+const NESTING_KINDS: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "for_in_statement",
+    "while_statement",
+    "do_statement",
+    "switch_statement",
+    "try_statement",
+];
+/// Parents whose `if` child is an `else if`, not a deeper level.
+const ELSE_PARENTS: &[&str] = &["else_clause"];
 
 pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Vec<Finding> {
     let mut out = Vec::new();
@@ -80,6 +94,15 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
             name,
             params,
             cfg.param_threshold,
+        ));
+        let depth = max_nesting(body, NESTING_KINDS, ELSE_PARENTS);
+        out.extend(nesting_finding(
+            path,
+            fn_node,
+            "ts.nesting",
+            name,
+            depth,
+            cfg.nesting_threshold,
         ));
     });
     out
@@ -134,6 +157,7 @@ mod tests {
             cyclomatic_threshold: 4,
             length_threshold: 8,
             param_threshold: 3,
+            nesting_threshold: 3,
         }
     }
 
@@ -212,5 +236,16 @@ const tangle = (x: number): number => {
         let t = parse("javascript", src);
         let r = run(Path::new("a.js"), src, &t, &cfg());
         assert!(r.iter().any(|f| f.detector == "ts.params"), "got: {:?}", r);
+    }
+
+    #[test]
+    fn deep_nesting_fires_but_else_if_chains_do_not() {
+        let deep = "function f(x) { if (x) { for (;;) { while (x) { return; } } } }";
+        let r = run(Path::new("a.js"), deep, &parse("javascript", deep), &cfg());
+        assert!(r.iter().any(|f| f.detector == "ts.nesting"), "got: {:?}", r);
+        let flat =
+            "function f(x) { if (x==1) {} else if (x==2) {} else if (x==3) {} else if (x==4) {} }";
+        let r = run(Path::new("a.js"), flat, &parse("javascript", flat), &cfg());
+        assert!(r.iter().all(|f| f.detector != "ts.nesting"), "got: {:?}", r);
     }
 }

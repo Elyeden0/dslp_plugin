@@ -5,7 +5,9 @@ use std::path::Path;
 
 use dslp_base::ComplexityConfig;
 use dslp_core::{Finding, Severity};
-use dslp_lang_common::{cyclomatic, finding_at_node, node_length_lines, params_finding};
+use dslp_lang_common::{
+    cyclomatic, finding_at_node, max_nesting, nesting_finding, node_length_lines, params_finding,
+};
 use tree_sitter::{Node, Tree};
 
 /// Go decision-point kinds: switch `expression_case`/`default_case`, select
@@ -21,6 +23,17 @@ const DECISION_KINDS: &[&str] = &[
     "&&",
     "||",
 ];
+
+/// Control-flow nodes that add a nesting level.
+const NESTING_KINDS: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "expression_switch_statement",
+    "type_switch_statement",
+    "select_statement",
+];
+/// Parents whose `if` child is an `else if`, not a deeper level.
+const ELSE_PARENTS: &[&str] = &["if_statement"];
 
 pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Vec<Finding> {
     let mut out = Vec::new();
@@ -73,6 +86,15 @@ pub fn run(path: &Path, source: &str, tree: &Tree, cfg: &ComplexityConfig) -> Ve
             params,
             cfg.param_threshold,
         ));
+        let depth = max_nesting(body, NESTING_KINDS, ELSE_PARENTS);
+        out.extend(nesting_finding(
+            path,
+            fn_node,
+            "go.nesting",
+            name,
+            depth,
+            cfg.nesting_threshold,
+        ));
     });
     out
 }
@@ -113,6 +135,7 @@ mod tests {
             cyclomatic_threshold: 4,
             length_threshold: 8,
             param_threshold: 3,
+            nesting_threshold: 3,
         }
     }
 
@@ -212,5 +235,15 @@ func (f *Foo) tangle(x int) int {
         let src = "package p\n\nfunc f(a, b, c int) {}\n";
         let r = run(Path::new("a.go"), src, &parse(src), &cfg());
         assert!(r.iter().any(|f| f.detector == "go.params"), "got: {:?}", r);
+    }
+
+    #[test]
+    fn deep_nesting_fires_but_else_if_chains_do_not() {
+        let deep = "package p\n\nfunc f(x int) {\n\tif x > 0 {\n\t\tfor x > 0 {\n\t\t\tfor x > 1 {\n\t\t\t\treturn\n\t\t\t}\n\t\t}\n\t}\n}\n";
+        let r = run(Path::new("a.go"), deep, &parse(deep), &cfg());
+        assert!(r.iter().any(|f| f.detector == "go.nesting"), "got: {:?}", r);
+        let flat = "package p\n\nfunc f(x int) {\n\tif x == 1 {\n\t} else if x == 2 {\n\t} else if x == 3 {\n\t} else if x == 4 {\n\t}\n}\n";
+        let r = run(Path::new("a.go"), flat, &parse(flat), &cfg());
+        assert!(r.iter().all(|f| f.detector != "go.nesting"), "got: {:?}", r);
     }
 }

@@ -95,6 +95,7 @@ dslp backlog --json --path .   # array of wontfix Issues
 | `rust.complexity` | Functions with cyclomatic complexity ≥ 10 (counts `if`, `match` arms, loops, `?`, `&&`, `\|\|`). |
 | `rust.length` | Functions ≥ 50 lines. Low severity. |
 | `rust.params` | Functions with ≥ 6 parameters (the `self` receiver is free). Low severity. |
+| `rust.nesting` | Functions nesting `if` / `match` / loops 5+ levels deep (`else if` / `elif` chains do not add depth). Low severity. |
 | `rust.leftover-debug` | `dbg!` left in code. Low severity. |
 | `rust.unfinished` | `todo!()` / `unimplemented!()`, which panic at runtime. Medium severity. |
 | `rust.dead-pub-fn` / `-struct` / `-enum` / `-trait` | Public items whose name isn't referenced anywhere in the corpus. Low severity (heuristic — false positives possible on macro-generated or trait-dispatched code). |
@@ -107,6 +108,7 @@ dslp backlog --json --path .   # array of wontfix Issues
 | `ts.complexity` | Functions / arrow functions / methods with cyclomatic complexity ≥ 10. Counts `if`, `for`, `while`, `do`, `switch case`, `?:`, `catch`, `&&`, `\|\|`, `??`. |
 | `ts.length` | Functions ≥ 50 lines. Low severity. |
 | `ts.params` | Functions with ≥ 6 parameters. Low severity. |
+| `ts.nesting` | Functions nesting `if` / `switch` / `try` / loops 5+ levels deep (`else if` / `elif` chains do not add depth). Low severity. |
 | `ts.empty-catch` | A `catch` block with no statements at all (a comment inside counts as a deliberate ignore). Medium severity. |
 | `ts.leftover-debug` | `console.log` / `console.debug` / `console.trace` calls and `debugger` statements. Low severity. |
 
@@ -120,6 +122,7 @@ A "dead-export" detector for TS/JS is intentionally not in this slice — the TS
 | `go.complexity` | Functions and methods with cyclomatic complexity ≥ 10. Counts `if`, `for`, switch `expression_case` / `default_case`, `select` `communication_case`, type-switch `type_case`, plus `&&` / `\|\|`. |
 | `go.length` | Functions ≥ 50 lines. Low severity. |
 | `go.params` | Functions with ≥ 6 parameters (`a, b int` counts as two). Low severity. |
+| `go.nesting` | Functions nesting `if` / `switch` / `select` / loops 5+ levels deep (`else if` / `elif` chains do not add depth). Low severity. |
 
 ### Python (`.py`, `.pyi`)
 
@@ -129,6 +132,7 @@ A "dead-export" detector for TS/JS is intentionally not in this slice — the TS
 | `python.complexity` | Functions / methods (including nested defs) with cyclomatic complexity ≥ 10. Counts `if`, `elif`, `for`, `while`, `except`, `match` `case`, conditional expressions (`x if c else y`), plus `and` / `or`. |
 | `python.length` | Functions ≥ 50 lines. Low severity. |
 | `python.params` | Functions with ≥ 6 parameters (`self`/`cls` are free). Low severity. |
+| `python.nesting` | Functions nesting `if` / `try` / `with` / `match` / loops 5+ levels deep (`else if` / `elif` chains do not add depth). Low severity. |
 | `python.silent-except` | An `except` block containing only `pass` / `...`. Medium severity. |
 | `python.leftover-debug` | `breakpoint()`, `pdb.set_trace()`, `ipdb.set_trace()`. Low severity. |
 
@@ -194,6 +198,7 @@ severity_at = 600
 cyclomatic_threshold = 10
 length_threshold = 50
 param_threshold = 6
+nesting_threshold = 5
 
 [detectors.dead_pub]
 ignore_paths = ["src/lib.rs"]
