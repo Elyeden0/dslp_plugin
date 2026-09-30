@@ -177,6 +177,12 @@ This is **net-new design** — desloppify ships no Nuxt support, so we couldn't 
 |---|---|
 | `nuxt.composable-naming` | A TS/JS file inside a `composables/` directory whose every exported function violates Nuxt's `use[A-Z]` naming convention. Auto-import won't pick those exports up under the expected name. The file passes if at least one of its exported functions is well-named. |
 
+### Duplicates (all languages)
+
+| Detector | What it flags |
+|---|---|
+| `dup.block` | A run of ≥ 8 identical significant lines (blank lines, comments, imports and lone braces are ignored) that also appears elsewhere. Of N copies, N−1 are reported, each pointing at the first. Test files (`tests/`, `*_test.*`, `*.spec.*`, `test_*`) are skipped. Low severity, Medium at 20+ lines. Tune with `[detectors.duplicates] min_lines`. |
+
 ## Configuration
 
 Drop a `.dslp/config.toml` in your project root:
@@ -194,6 +200,9 @@ disable = ["rust.dead-pub-fn", "ts.*"]   # exact ids, or a family with a trailin
 [detectors.languages.python]             # per-language overrides, keyed by plugin id
 cyclomatic_threshold = 15                # also: length_threshold, param_threshold,
 file_size_threshold = 600                #       nesting_threshold, file_size_severity_at
+
+[detectors.duplicates]
+min_lines = 8
 
 [detectors.file_size]
 threshold = 400
@@ -241,7 +250,7 @@ State persists in `.dslp/state.json` (schema v3). State from older versions is d
 
 ## Monorepo support (`--lang`)
 
-Every command accepts `--lang <id>` (`rust`, `typescript`, `go`, `python`, `c`, `cpp`, `react`, `nextjs`, `nuxt`) to scope it to one plugin. A scoped `scan` only runs that plugin and persists to its own `.dslp/state-<lang>.json`, completely independent of the shared `.dslp/state.json` — so a monorepo with e.g. a Go backend and a TypeScript frontend under the same `--path` can track and score each language separately (`dslp scan --lang go`, `dslp scan --lang typescript`) without one language's fixes or regressions touching the other's history. Omit `--lang` to scan/score everything under `--path` together, as before. `--lang` with an unrecognized id fails fast, listing the valid ids.
+Every command accepts `--lang <id>` (`rust`, `typescript`, `go`, `python`, `c`, `cpp`, `react`, `nextjs`, `nuxt`, `duplicates`) to scope it to one plugin. A scoped `scan` only runs that plugin and persists to its own `.dslp/state-<lang>.json`, completely independent of the shared `.dslp/state.json` — so a monorepo with e.g. a Go backend and a TypeScript frontend under the same `--path` can track and score each language separately (`dslp scan --lang go`, `dslp scan --lang typescript`) without one language's fixes or regressions touching the other's history. Omit `--lang` to scan/score everything under `--path` together, as before. `--lang` with an unrecognized id fails fast, listing the valid ids.
 
 ## Architecture
 
@@ -260,6 +269,7 @@ Cargo workspace:
 - `dslp-fw-react` — React framework plugin (auto-detects react/next/gatsby/remix in `package.json` or any `.tsx` file).
 - `dslp-fw-nextjs` — Next.js framework plugin (auto-detects `next` in `package.json`).
 - `dslp-fw-nuxt` — Nuxt framework plugin (net-new — auto-detects `nuxt` in `package.json`).
+- `dslp-dup` — cross-language duplicate-block detector.
 - `dslp-cli` — the `dslp` binary.
 
 ## Roadmap

@@ -215,3 +215,36 @@ fn findings_can_be_emitted_as_sarif() {
         "flags conflict"
     );
 }
+
+#[test]
+fn duplicate_blocks_are_reported_across_languages_and_can_be_disabled() {
+    let dir = fresh_dir("dup-e2e");
+    let shared: String = (0..10)
+        .map(|i| format!("    total += weigh(item_{i});\n"))
+        .collect();
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(dir.join("src/a.rs"), format!("fn a() {{\n{shared}}}\n")).unwrap();
+    std::fs::write(dir.join("src/b.rs"), format!("fn b() {{\n{shared}}}\n")).unwrap();
+    run(&["scan"], &dir);
+    let v: serde_json::Value =
+        serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
+    let dups: Vec<_> = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|i| i["detector"] == "dup.block")
+        .collect();
+    assert_eq!(dups.len(), 1, "{v}");
+    assert_eq!(dups[0]["file"], "src/b.rs");
+
+    std::fs::create_dir_all(dir.join(".dslp")).unwrap();
+    std::fs::write(
+        dir.join(".dslp/config.toml"),
+        "[detectors]\ndisable = [\"dup.*\"]\n",
+    )
+    .unwrap();
+    run(&["scan"], &dir);
+    let v: serde_json::Value =
+        serde_json::from_slice(&run(&["findings", "--json"], &dir).stdout).unwrap();
+    assert!(v.as_array().unwrap().is_empty());
+}

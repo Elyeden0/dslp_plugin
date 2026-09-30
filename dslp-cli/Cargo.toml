@@ -15,6 +15,7 @@ path = "src/main.rs"
 dslp-core = { path = "../dslp-core" }
 dslp-base = { path = "../dslp-base" }
 dslp-engine = { path = "../dslp-engine" }
+dslp-dup = { path = "../dslp-dup" }
 dslp-lang-rust = { path = "../dslp-lang-rust" }
 dslp-lang-ts = { path = "../dslp-lang-ts" }
 dslp-lang-go = { path = "../dslp-lang-go" }

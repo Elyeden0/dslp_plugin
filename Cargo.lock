@@ -260,6 +260,7 @@ dependencies = [
  "clap",
  "dslp-base",
  "dslp-core",
+ "dslp-dup",
  "dslp-engine",
  "dslp-fw-nextjs",
  "dslp-fw-nuxt",
@@ -283,6 +284,16 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "dslp-dup"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "dslp-base",
+ "dslp-core",
+ "serde_json",
 ]
 
 [[package]]

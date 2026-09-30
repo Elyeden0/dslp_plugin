@@ -34,6 +34,7 @@ pub struct DetectorsConfig {
     pub file_size: FileSizeConfig,
     pub complexity: ComplexityConfig,
     pub dead_pub: DeadPubConfig,
+    pub duplicates: DuplicatesConfig,
 }
 
 /// Thresholds a single language overrides; unset fields fall back to the
@@ -99,6 +100,19 @@ pub struct ComplexityConfig {
     pub length_threshold: u32,
     pub param_threshold: u32,
     pub nesting_threshold: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DuplicatesConfig {
+    /// Consecutive significant lines that must match to count as a duplicate.
+    pub min_lines: usize,
+}
+
+impl Default for DuplicatesConfig {
+    fn default() -> Self {
+        Self { min_lines: 8 }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

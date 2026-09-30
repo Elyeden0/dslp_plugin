@@ -1,0 +1,14 @@
+[package]
+name = "dslp-dup"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Cross-language duplicate-block detector for noAIslop"
+
+[dependencies]
+dslp-core = { path = "../dslp-core" }
+dslp-base = { path = "../dslp-base" }
+serde_json.workspace = true
+blake3.workspace = true

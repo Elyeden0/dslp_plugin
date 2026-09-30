@@ -26,6 +26,7 @@ fn main() -> ExitCode {
         Box::new(dslp_fw_react::ReactPlugin::new()),
         Box::new(dslp_fw_nextjs::NextjsPlugin::new()),
         Box::new(dslp_fw_nuxt::NuxtPlugin::new()),
+        Box::new(dslp_dup::DupPlugin::new()),
     ];
 
     if let Err(e) = validate_lang(cli.command.target().lang(), &plugins) {

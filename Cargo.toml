@@ -15,6 +15,7 @@ members = [
     "dslp-lang-python",
     "dslp-lang-c",
     "dslp-lang-cpp",
+    "dslp-dup",
 ]
 
 [workspace.package]
