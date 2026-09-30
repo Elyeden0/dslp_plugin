@@ -28,6 +28,10 @@ fn main() -> ExitCode {
         Box::new(dslp_fw_nuxt::NuxtPlugin::new()),
     ];
 
+    if let Err(e) = validate_lang(cli.command.target().lang(), &plugins) {
+        eprintln!("error: {:#}", e);
+        return ExitCode::from(2);
+    }
     match dispatch(cli.command, plugins) {
         Ok(code) => code,
         Err(e) => {
@@ -37,11 +41,19 @@ fn main() -> ExitCode {
     }
 }
 
+/// Fail fast on an unknown `--lang`, for every command (not just `scan`).
+fn validate_lang(lang: Option<&str>, plugins: &[Box<dyn LanguagePlugin>]) -> anyhow::Result<()> {
+    let Some(id) = lang else { return Ok(()) };
+    if plugins.iter().any(|p| p.id() == id) {
+        return Ok(());
+    }
+    let known: Vec<&str> = plugins.iter().map(|p| p.id()).collect();
+    anyhow::bail!("unknown --lang '{id}'. Valid values: {}", known.join(", "))
+}
+
 fn dispatch(command: Command, plugins: Vec<Box<dyn LanguagePlugin>>) -> anyhow::Result<ExitCode> {
     match command {
-        Command::Scan { path_arg, path_flag, json, lang } => {
-            cmd_scan(&resolve_path(path_arg, path_flag), plugins, json, lang.as_deref())
-        }
+        Command::Scan { target, json } => cmd_scan(&target.path(), plugins, json, target.lang()),
         Command::Query(q) => dispatch_query(q),
         Command::Mutate(m) => dispatch_mutate(m),
     }
@@ -49,42 +61,30 @@ fn dispatch(command: Command, plugins: Vec<Box<dyn LanguagePlugin>>) -> anyhow::
 
 fn dispatch_query(command: QueryCommand) -> anyhow::Result<ExitCode> {
     match command {
-        QueryCommand::Next { path_arg, path_flag, json, lang } => {
-            cmd_next(&resolve_path(path_arg, path_flag), json, lang.as_deref())
+        QueryCommand::Next { target, json } => cmd_next(&target.path(), json, target.lang()),
+        QueryCommand::Score { target, json } => cmd_score(&target.path(), json, target.lang()),
+        QueryCommand::Findings { target, json, limit } => {
+            cmd_findings(&target.path(), json, limit, target.lang())
         }
-        QueryCommand::Score { path_arg, path_flag, json, lang } => {
-            cmd_score(&resolve_path(path_arg, path_flag), json, lang.as_deref())
+        QueryCommand::Plan { target, json, limit } => {
+            cmd_plan(&target.path(), json, limit, target.lang())
         }
-        QueryCommand::Findings { path_arg, path_flag, json, limit, lang } => {
-            cmd_findings(&resolve_path(path_arg, path_flag), json, limit, lang.as_deref())
-        }
-        QueryCommand::Plan { path_arg, path_flag, json, limit, lang } => {
-            cmd_plan(&resolve_path(path_arg, path_flag), json, limit, lang.as_deref())
-        }
-        QueryCommand::Backlog { path_arg, path_flag, json, lang } => {
-            cmd_backlog(&resolve_path(path_arg, path_flag), json, lang.as_deref())
-        }
-        QueryCommand::Badge { path_arg, path_flag, label, lenient, lang } => {
-            cmd_badge(&resolve_path(path_arg, path_flag), &label, lenient, lang.as_deref())
+        QueryCommand::Backlog { target, json } => cmd_backlog(&target.path(), json, target.lang()),
+        QueryCommand::Badge { target, label, lenient } => {
+            cmd_badge(&target.path(), &label, lenient, target.lang())
         }
     }
 }
 
 fn dispatch_mutate(command: MutateCommand) -> anyhow::Result<ExitCode> {
     match command {
-        MutateCommand::Resolve { fingerprint, path_arg, path_flag, json, lang } => {
-            cmd_resolve(&resolve_path(path_arg, path_flag), lang.as_deref(), &fingerprint, json)
+        MutateCommand::Resolve { fingerprint, target, json } => {
+            cmd_resolve(&target.path(), target.lang(), &fingerprint, json)
         }
-        MutateCommand::Suppress { fingerprint, reason, path_arg, path_flag, json, lang } => {
-            cmd_suppress(&resolve_path(path_arg, path_flag), lang.as_deref(), &fingerprint, &reason, json)
+        MutateCommand::Suppress { fingerprint, reason, target, json } => {
+            cmd_suppress(&target.path(), target.lang(), &fingerprint, &reason, json)
         }
     }
-}
-
-/// The bare positional path (`dslp scan ./project`) takes precedence over
-/// `--path`, which itself defaults to the current directory.
-fn resolve_path(path_arg: Option<std::path::PathBuf>, path_flag: std::path::PathBuf) -> std::path::PathBuf {
-    path_arg.unwrap_or(path_flag)
 }
 
 /// Restore the OS-default disposition for SIGPIPE. Rust's runtime installs

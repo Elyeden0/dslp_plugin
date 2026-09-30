@@ -1,12 +1,13 @@
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(
     name = "dslp",
     version,
     about = "noAIslop — analyze a codebase, score it, queue what to fix",
+    override_usage = "dslp <COMMAND> [PATH]",
     propagate_version = true
 )]
 pub struct Cli {
@@ -14,23 +15,43 @@ pub struct Cli {
     pub command: Command,
 }
 
+/// Where to look and which plugin to scope to; shared by every command.
+#[derive(Args, Debug)]
+pub struct Target {
+    /// Project to analyze (defaults to the current directory)
+    #[arg(value_name = "PATH")]
+    path_arg: Option<PathBuf>,
+    #[arg(long = "path", value_name = "PATH", conflicts_with = "path_arg")]
+    path_flag: Option<PathBuf>,
+    /// Restrict to one language/framework plugin (e.g. `go`, `typescript`, `react`) —
+    /// scores and tracks that language independently in `.dslp/state-<lang>.json`,
+    /// for monorepos with more than one language under the same --path
+    #[arg(long)]
+    pub lang: Option<String>,
+}
+
+impl Target {
+    pub fn path(&self) -> PathBuf {
+        self.path_arg
+            .clone()
+            .or_else(|| self.path_flag.clone())
+            .unwrap_or_else(|| PathBuf::from("."))
+    }
+
+    pub fn lang(&self) -> Option<&str> {
+        self.lang.as_deref()
+    }
+}
+
 #[derive(Subcommand, Debug)]
 pub enum Command {
     /// Scan a project: detect issues, write state to .dslp/state.json
     Scan {
-        /// Project to analyze (defaults to the current directory)
-        #[arg(value_name = "PATH")]
-        path_arg: Option<PathBuf>,
-        #[arg(long = "path", value_name = "PATH", default_value = ".")]
-        path_flag: PathBuf,
+        #[command(flatten)]
+        target: Target,
         /// Emit machine-readable JSON to stdout instead of human text
         #[arg(long, default_value_t = false)]
         json: bool,
-        /// Restrict to one language/framework plugin (e.g. `go`, `typescript`, `react`) —
-        /// scores and tracks that language independently in `.dslp/state-<lang>.json`,
-        /// for monorepos with more than one language under the same --path
-        #[arg(long)]
-        lang: Option<String>,
     },
     #[command(flatten)]
     Query(QueryCommand),
@@ -38,90 +59,81 @@ pub enum Command {
     Mutate(MutateCommand),
 }
 
+impl Command {
+    pub fn target(&self) -> &Target {
+        match self {
+            Command::Scan { target, .. } => target,
+            Command::Query(q) => match q {
+                QueryCommand::Next { target, .. }
+                | QueryCommand::Score { target, .. }
+                | QueryCommand::Findings { target, .. }
+                | QueryCommand::Plan { target, .. }
+                | QueryCommand::Backlog { target, .. }
+                | QueryCommand::Badge { target, .. } => target,
+            },
+            Command::Mutate(m) => match m {
+                MutateCommand::Resolve { target, .. } | MutateCommand::Suppress { target, .. } => {
+                    target
+                }
+            },
+        }
+    }
+}
+
 /// Read-only commands: inspect the last scan's state without changing it.
 #[derive(Subcommand, Debug)]
 pub enum QueryCommand {
     /// Show the highest-priority open issue from the last scan
     Next {
-        /// Project to analyze (defaults to the current directory)
-        #[arg(value_name = "PATH")]
-        path_arg: Option<PathBuf>,
-        #[arg(long = "path", value_name = "PATH", default_value = ".")]
-        path_flag: PathBuf,
+        #[command(flatten)]
+        target: Target,
         #[arg(long, default_value_t = false)]
         json: bool,
-        #[arg(long)]
-        lang: Option<String>,
     },
     /// Print the latest score: lenient / strict / gap (no rescan)
     Score {
-        /// Project to analyze (defaults to the current directory)
-        #[arg(value_name = "PATH")]
-        path_arg: Option<PathBuf>,
-        #[arg(long = "path", value_name = "PATH", default_value = ".")]
-        path_flag: PathBuf,
+        #[command(flatten)]
+        target: Target,
         #[arg(long, default_value_t = false)]
         json: bool,
-        #[arg(long)]
-        lang: Option<String>,
     },
     /// List all open issues in priority order
     Findings {
-        /// Project to analyze (defaults to the current directory)
-        #[arg(value_name = "PATH")]
-        path_arg: Option<PathBuf>,
-        #[arg(long = "path", value_name = "PATH", default_value = ".")]
-        path_flag: PathBuf,
+        #[command(flatten)]
+        target: Target,
         #[arg(long, default_value_t = false)]
         json: bool,
         /// Cap the number of issues shown (default: all)
         #[arg(long)]
         limit: Option<usize>,
-        #[arg(long)]
-        lang: Option<String>,
     },
     /// Group open issues by file, ranked by total severity penalty — a batch triage plan
     Plan {
-        /// Project to analyze (defaults to the current directory)
-        #[arg(value_name = "PATH")]
-        path_arg: Option<PathBuf>,
-        #[arg(long = "path", value_name = "PATH", default_value = ".")]
-        path_flag: PathBuf,
+        #[command(flatten)]
+        target: Target,
         #[arg(long, default_value_t = false)]
         json: bool,
         /// Cap the number of files shown (default: all)
         #[arg(long)]
         limit: Option<usize>,
-        #[arg(long)]
-        lang: Option<String>,
     },
     /// List wontfix (suppressed) issues — the standing-decision backlog
     Backlog {
-        /// Project to analyze (defaults to the current directory)
-        #[arg(value_name = "PATH")]
-        path_arg: Option<PathBuf>,
-        #[arg(long = "path", value_name = "PATH", default_value = ".")]
-        path_flag: PathBuf,
+        #[command(flatten)]
+        target: Target,
         #[arg(long, default_value_t = false)]
         json: bool,
-        #[arg(long)]
-        lang: Option<String>,
     },
     /// Emit a shields.io endpoint-badge payload for the score (strict by default — see Scoring)
     Badge {
-        /// Project to analyze (defaults to the current directory)
-        #[arg(value_name = "PATH")]
-        path_arg: Option<PathBuf>,
-        #[arg(long = "path", value_name = "PATH", default_value = ".")]
-        path_flag: PathBuf,
+        #[command(flatten)]
+        target: Target,
         /// Badge label text
         #[arg(long, default_value = "dslp")]
         label: String,
         /// Use the lenient score instead of strict (strict is the anti-gaming default)
         #[arg(long, default_value_t = false)]
         lenient: bool,
-        #[arg(long)]
-        lang: Option<String>,
     },
 }
 
@@ -132,15 +144,10 @@ pub enum MutateCommand {
     Resolve {
         /// Issue fingerprint (a unique prefix is enough)
         fingerprint: String,
-        /// Project to analyze (defaults to the current directory)
-        #[arg(value_name = "PATH")]
-        path_arg: Option<PathBuf>,
-        #[arg(long = "path", value_name = "PATH", default_value = ".")]
-        path_flag: PathBuf,
+        #[command(flatten)]
+        target: Target,
         #[arg(long, default_value_t = false)]
         json: bool,
-        #[arg(long)]
-        lang: Option<String>,
     },
     /// Dismiss an issue as wontfix (still counts toward the strict score)
     Suppress {
@@ -149,14 +156,9 @@ pub enum MutateCommand {
         /// Why this issue won't be fixed (required)
         #[arg(long)]
         reason: String,
-        /// Project to analyze (defaults to the current directory)
-        #[arg(value_name = "PATH")]
-        path_arg: Option<PathBuf>,
-        #[arg(long = "path", value_name = "PATH", default_value = ".")]
-        path_flag: PathBuf,
+        #[command(flatten)]
+        target: Target,
         #[arg(long, default_value_t = false)]
         json: bool,
-        #[arg(long)]
-        lang: Option<String>,
     },
 }

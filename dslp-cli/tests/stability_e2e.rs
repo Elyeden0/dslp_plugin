@@ -58,3 +58,19 @@ fn shared_extensions_count_loc_once() {
     assert_eq!(v["files_scanned"], 1);
 }
 
+#[test]
+fn unknown_lang_is_rejected_by_every_command() {
+    let dir = fresh_dir("stab-lang");
+    for cmd in ["next", "score", "findings", "plan", "backlog", "badge"] {
+        let out = run(&[cmd, "--lang", "klingon"], &dir);
+        assert_eq!(out.status.code(), Some(2), "{cmd}");
+        assert!(String::from_utf8_lossy(&out.stderr).contains("unknown --lang"), "{cmd}");
+    }
+}
+
+#[test]
+fn positional_path_and_flag_conflict() {
+    let dir = fresh_dir("stab-conflict");
+    let out = run(&["scan", ".", "--path", "."], &dir);
+    assert!(!out.status.success());
+}

@@ -11,16 +11,8 @@ pub fn cmd_scan(
     json: bool,
     lang: Option<&str>,
 ) -> anyhow::Result<ExitCode> {
-    let selected = match lang {
-        Some(id) => {
-            let known: Vec<&'static str> = plugins.iter().map(|p| p.id()).collect();
-            let matched: Vec<Box<dyn LanguagePlugin>> =
-                plugins.into_iter().filter(|p| p.id() == id).collect();
-            if matched.is_empty() {
-                anyhow::bail!("unknown --lang '{id}'. Valid values: {}", known.join(", "));
-            }
-            matched
-        }
+    let selected: Vec<Box<dyn LanguagePlugin>> = match lang {
+        Some(id) => plugins.into_iter().filter(|p| p.id() == id).collect(),
         None => plugins,
     };
     let report = dslp_engine::run_scan(path, &selected, lang)?;
