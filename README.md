@@ -34,7 +34,7 @@ Install the plugin to let Claude run the scan → fix loop for you. You don't ne
 /plugin install dslp --marketplace Elyeden0/dslp_plugin
 ```
 
-It adds a `dslp` skill plus `/dslp-scan` and `/dslp-fix`. At session start it downloads the prebuilt `dslp` matching the plugin version (Linux and macOS, x86_64 and arm64), or builds it from source in the background if there is no prebuilt binary and a Rust toolchain is available.
+It adds a `dslp` skill plus `/dslp-scan` and `/dslp-fix`. On first use, and at session start after each plugin update, it downloads the prebuilt `dslp` matching the plugin version (Linux and macOS, x86_64 and arm64), or builds it from source in the background if there is no prebuilt binary and a Rust toolchain is available.
 
 Prebuilt binaries are attached to each GitHub release by `.github/workflows/release.yml`, which runs on a `v*` tag. Bump the version in both `Cargo.toml` and `.claude-plugin/plugin.json` before tagging.
 

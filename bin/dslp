@@ -1,8 +1,11 @@
 #!/bin/sh
-# The real binary is installed by hooks/ensure-dslp.sh at session start.
-real="$(dirname "$0")/.dslp"
+# hooks/ensure-dslp.sh installs the real binary at session start. When the plugin was
+# installed mid-session that hasn't happened yet, so install it now; the Bash tool can't
+# see $CLAUDE_PLUGIN_DATA, so this copy lives in the plugin root until the next session.
+root="$(cd "$(dirname "$0")/.." && pwd)"
+real="$root/bin/.dslp"
 if [ ! -x "$real" ]; then
-  echo "dslp: not installed yet; the dslp plugin installs it at session start (a source build may still be running)" >&2
-  exit 2
+  CLAUDE_PLUGIN_ROOT="$root" CLAUDE_PLUGIN_DATA="$root/.data" "$root/hooks/ensure-dslp.sh" >&2
+  [ -x "$real" ] || exit 2
 fi
 exec "$real" "$@"

@@ -2,8 +2,9 @@
 /target/
 # Cargo.lock is committed — dslp-cli ships a binary, so pin reproducible builds.
 
-# Link to the plugin's installed binary, created by hooks/ensure-dslp.sh
+# Installed dslp binary: link from hooks/ensure-dslp.sh, on-demand copy from bin/dslp
 /bin/.dslp
+/.data/
 
 # dslp's own local scan cache
 .dslp/
