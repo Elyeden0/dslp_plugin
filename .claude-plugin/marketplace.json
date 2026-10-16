@@ -1,5 +1,5 @@
 {
-  "name": "noaislop",
+  "name": "dslp-plugin",
   "owner": { "name": "Alexis Bonnard" },
   "description": "dslp: score a codebase for AI slop and fix it",
   "plugins": [
