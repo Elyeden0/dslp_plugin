@@ -28,13 +28,15 @@ Update later with `git pull && cargo install --path dslp-cli --force`; remove wi
 
 ### Claude Code plugin
 
-With `dslp` on your `PATH`, install the plugin to let Claude run the scan → fix loop for you:
+Install the plugin to let Claude run the scan → fix loop for you. You don't need to install `dslp` yourself:
 
 ```
 /plugin install dslp --marketplace Elyeden0/dslp_plugin
 ```
 
-It adds a `dslp` skill plus `/dslp-scan` and `/dslp-fix`, and warns at session start if the `dslp` binary is missing.
+It adds a `dslp` skill plus `/dslp-scan` and `/dslp-fix`. At session start it downloads the prebuilt `dslp` matching the plugin version (Linux and macOS, x86_64 and arm64), or builds it from source in the background if there is no prebuilt binary and a Rust toolchain is available.
+
+Prebuilt binaries are attached to each GitHub release by `.github/workflows/release.yml`, which runs on a `v*` tag. Bump the version in both `Cargo.toml` and `.claude-plugin/plugin.json` before tagging.
 
 ## Quick start
 
