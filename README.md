@@ -26,6 +26,16 @@ After install, the binary is `dslp`. `cargo install` puts it in `~/.cargo/bin`; 
 
 Update later with `git pull && cargo install --path dslp-cli --force`; remove with `cargo uninstall dslp-cli`.
 
+### Claude Code plugin
+
+With `dslp` on your `PATH`, install the plugin to let Claude run the scan → fix loop for you:
+
+```
+/plugin install dslp --marketplace Elyeden0/rust_noAIslop
+```
+
+It adds a `dslp` skill plus `/dslp-scan` and `/dslp-fix`, and warns at session start if the `dslp` binary is missing.
+
 ## Quick start
 
 ```bash
@@ -120,11 +130,11 @@ State persists in `.dslp/` across runs so progress carries over. Commit `.dslp/c
 
 ### Exit codes
 
-| Code | Meaning |
-|---|---|
-| `0` | Success. |
+| Code  | Meaning                                                                                                                                  |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `0` | Success.                                                                                                                                 |
 | `1` | A check said "no": a `scan` gate failed (`--fail-under` / `--fail-on-new`), there is no scan yet, or `next` found no open issues. |
-| `2` | Error or bad usage (unknown `--lang`, unreadable config, bad `--since` revision, ...). |
+| `2` | Error or bad usage (unknown `--lang`, unreadable config, bad `--since` revision, ...).                                               |
 
 ## What it detects
 
@@ -132,19 +142,19 @@ Every detector has an id like `rust.complexity` and a severity (low, medium, hig
 
 ### At a glance
 
-| Check | Rust | TS/JS | Go | Python | C | C++ |
-|---|---|---|---|---|---|---|
-| File size | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Cyclomatic complexity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Function length | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Too many parameters | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Deep nesting | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Commented-out code, comments that restate the code | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Swallowed errors | | `ts.empty-catch` | `go.ignored-error` | `python.silent-except` | | `cpp.empty-catch` |
-| Leftover debugging | `rust.leftover-debug` | `ts.leftover-debug` | | `python.leftover-debug` | | |
-| Unfinished code | `rust.unfinished` | | | | | |
-| Habit density (per file) | `rust.unwrap-density` | `ts.any-density` | | | | |
-| Unused public items | `rust.dead-pub-*` | `ts.dead-export` | | | | |
+| Check                                              | Rust                    | TS/JS                 | Go                   | Python                    | C  | C++                 |
+| -------------------------------------------------- | ----------------------- | --------------------- | -------------------- | ------------------------- | -- | ------------------- |
+| File size                                          | ✓                      | ✓                    | ✓                   | ✓                        | ✓ | ✓                  |
+| Cyclomatic complexity                              | ✓                      | ✓                    | ✓                   | ✓                        | ✓ | ✓                  |
+| Function length                                    | ✓                      | ✓                    | ✓                   | ✓                        | ✓ | ✓                  |
+| Too many parameters                                | ✓                      | ✓                    | ✓                   | ✓                        | ✓ | ✓                  |
+| Deep nesting                                       | ✓                      | ✓                    | ✓                   | ✓                        | ✓ | ✓                  |
+| Commented-out code, comments that restate the code | ✓                      | ✓                    | ✓                   | ✓                        | ✓ | ✓                  |
+| Swallowed errors                                   |                         | `ts.empty-catch`    | `go.ignored-error` | `python.silent-except`  |    | `cpp.empty-catch` |
+| Leftover debugging                                 | `rust.leftover-debug` | `ts.leftover-debug` |                      | `python.leftover-debug` |    |                     |
+| Unfinished code                                    | `rust.unfinished`     |                       |                      |                           |    |                     |
+| Habit density (per file)                           | `rust.unwrap-density` | `ts.any-density`    |                      |                           |    |                     |
+| Unused public items                                | `rust.dead-pub-*`     | `ts.dead-export`    |                      |                           |    |                     |
 
 Across all languages, `dup.block` finds duplicated code. Framework detectors switch on automatically: React (`react.hook-return-bloat`), Next.js (`nextjs.use-client-not-first`), Nuxt (`nuxt.composable-naming`).
 
@@ -153,34 +163,34 @@ Details, thresholds and exact rules are below; click a language to expand.
 <details>
 <summary><b>Rust (.rs)</b></summary>
 
-| Detector | What it flags |
-|---|---|
-| `rust.file-size` | Files over 400 lines (configurable). Severity bumps to High at 600. |
-| `rust.complexity` | Functions with cyclomatic complexity ≥ 10. Counts `if`, loops, `?`, `&&`, `\|\|` and `match` arms (a `match` with n arms adds n − 1). Nested named `fn`s are scored on their own, not added to the parent. |
-| `rust.length` | Functions ≥ 50 lines. Low severity. |
-| `rust.params` | Functions with ≥ 6 parameters (the `self` receiver is free). Low severity. |
-| `rust.nesting` | Functions nesting `if` / `match` / loops 5+ levels deep (`else if` chains do not add depth). Low severity. |
-| `rust.leftover-debug` | `dbg!` left in code. Low severity. |
-| `rust.unfinished` | `todo!()` / `unimplemented!()`, which panic at runtime. Medium severity. |
-| `rust.unwrap-density` | A file with ≥ 10 `.unwrap()` / `.expect()` calls outside `#[test]` / `mod tests` / `tests/`. One finding per file. Low severity. |
-| `rust.dead-pub-fn` / `-struct` / `-enum` / `-trait` | Public items whose name isn't referenced anywhere in the corpus. Low severity (heuristic — false positives possible on macro-generated or trait-dispatched code). |
+| Detector                                                    | What it flags                                                                                                                                                                                                           |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rust.file-size`                                          | Files over 400 lines (configurable). Severity bumps to High at 600.                                                                                                                                                     |
+| `rust.complexity`                                         | Functions with cyclomatic complexity ≥ 10. Counts `if`, loops, `?`, `&&`, `\|\|` and `match` arms (a `match` with n arms adds n − 1). Nested named `fn`s are scored on their own, not added to the parent. |
+| `rust.length`                                             | Functions ≥ 50 lines. Low severity.                                                                                                                                                                                    |
+| `rust.params`                                             | Functions with ≥ 6 parameters (the `self` receiver is free). Low severity.                                                                                                                                           |
+| `rust.nesting`                                            | Functions nesting `if` / `match` / loops 5+ levels deep (`else if` chains do not add depth). Low severity.                                                                                                        |
+| `rust.leftover-debug`                                     | `dbg!` left in code. Low severity.                                                                                                                                                                                    |
+| `rust.unfinished`                                         | `todo!()` / `unimplemented!()`, which panic at runtime. Medium severity.                                                                                                                                            |
+| `rust.unwrap-density`                                     | A file with ≥ 10 `.unwrap()` / `.expect()` calls outside `#[test]` / `mod tests` / `tests/`. One finding per file. Low severity.                                                                             |
+| `rust.dead-pub-fn` / `-struct` / `-enum` / `-trait` | Public items whose name isn't referenced anywhere in the corpus. Low severity (heuristic — false positives possible on macro-generated or trait-dispatched code).                                                      |
 
 </details>
 
 <details>
 <summary><b>TypeScript / JavaScript (.ts, .tsx, .js, .jsx, .cjs, .mjs)</b></summary>
 
-| Detector | What it flags |
-|---|---|
-| `ts.file-size` | Files over the threshold (same configurable thresholds as Rust). |
-| `ts.complexity` | Functions / arrow functions / methods with cyclomatic complexity ≥ 10. Counts `if`, `for`, `while`, `do`, `switch case`, `?:`, `catch`, `&&`, `\|\|`, `??`. |
-| `ts.length` | Functions ≥ 50 lines. Low severity. |
-| `ts.params` | Functions with ≥ 6 parameters. Low severity. |
-| `ts.nesting` | Functions nesting `if` / `switch` / `try` / loops 5+ levels deep (`else if` chains do not add depth). Low severity. |
-| `ts.empty-catch` | A `catch` block with no statements at all (a comment inside counts as a deliberate ignore). Medium severity. |
-| `ts.leftover-debug` | `console.log` / `console.debug` / `console.trace` calls and `debugger` statements. Low severity. |
-| `ts.any-density` | A file with ≥ 5 explicit `any` types. One finding per file. Low severity. |
-| `ts.dead-export` | `export function/const/class/interface/type/enum` whose name isn't mentioned anywhere else in the project (see notes below). Low severity. |
+| Detector              | What it flags                                                                                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ts.file-size`      | Files over the threshold (same configurable thresholds as Rust).                                                                                                              |
+| `ts.complexity`     | Functions / arrow functions / methods with cyclomatic complexity ≥ 10. Counts `if`, `for`, `while`, `do`, `switch case`, `?:`, `catch`, `&&`, `\|\|`, `??`. |
+| `ts.length`         | Functions ≥ 50 lines. Low severity.                                                                                                                                          |
+| `ts.params`         | Functions with ≥ 6 parameters. Low severity.                                                                                                                                 |
+| `ts.nesting`        | Functions nesting `if` / `switch` / `try` / loops 5+ levels deep (`else if` chains do not add depth). Low severity.                                                   |
+| `ts.empty-catch`    | A `catch` block with no statements at all (a comment inside counts as a deliberate ignore). Medium severity.                                                                |
+| `ts.leftover-debug` | `console.log` / `console.debug` / `console.trace` calls and `debugger` statements. Low severity.                                                                      |
+| `ts.any-density`    | A file with ≥ 5 explicit `any` types. One finding per file. Low severity.                                                                                                  |
+| `ts.dead-export`    | `export function/const/class/interface/type/enum` whose name isn't mentioned anywhere else in the project (see notes below). Low severity.                                  |
 
 **`ts.dead-export` notes.** It matches names only and counts any mention (import, re-export, local use, JSX, type) as a reference, so it errs towards silence. It is skipped for library packages (`package.json` with `main` / `module` / `exports` / `types`), for `export default` and `export { .. }` clauses, and for files a framework loads by convention (`index`, `page`, `layout`, `route`, `pages/`, `app/`, `components/`, `composables/`, `server/`, `utils/`, `*.config.*`, `*.d.ts`, tests). `detectors.dead_pub.ignore_paths` applies.
 
@@ -189,56 +199,56 @@ Details, thresholds and exact rules are below; click a language to expand.
 <details>
 <summary><b>Go (.go)</b></summary>
 
-| Detector | What it flags |
-|---|---|
-| `go.file-size` | Files over the threshold. |
-| `go.complexity` | Functions and methods with cyclomatic complexity ≥ 10. Counts `if`, `for`, switch `expression_case` / `default_case`, `select` `communication_case`, type-switch `type_case`, plus `&&` / `\|\|`. |
-| `go.length` | Functions ≥ 50 lines. Low severity. |
-| `go.params` | Functions with ≥ 6 parameters (`a, b int` counts as two). Low severity. |
-| `go.nesting` | Functions nesting `if` / `switch` / `select` / loops 5+ levels deep (`else if` chains do not add depth). Low severity. |
-| `go.ignored-error` | `_ = f()` / `_, _ = f()`: a call whose result is assigned only to the blank identifier, discarding a possible error. Medium severity. |
+| Detector             | What it flags                                                                                                                                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `go.file-size`     | Files over the threshold.                                                                                                                                                                                         |
+| `go.complexity`    | Functions and methods with cyclomatic complexity ≥ 10. Counts `if`, `for`, switch `expression_case` / `default_case`, `select` `communication_case`, type-switch `type_case`, plus `&&` / `\|\|`. |
+| `go.length`        | Functions ≥ 50 lines. Low severity.                                                                                                                                                                              |
+| `go.params`        | Functions with ≥ 6 parameters (`a, b int` counts as two). Low severity.                                                                                                                                        |
+| `go.nesting`       | Functions nesting `if` / `switch` / `select` / loops 5+ levels deep (`else if` chains do not add depth). Low severity.                                                                                    |
+| `go.ignored-error` | `_ = f()` / `_, _ = f()`: a call whose result is assigned only to the blank identifier, discarding a possible error. Medium severity.                                                                         |
 
 </details>
 
 <details>
 <summary><b>Python (.py, .pyi)</b></summary>
 
-| Detector | What it flags |
-|---|---|
-| `python.file-size` | Files over the threshold. |
-| `python.complexity` | Functions / methods (nested defs are scored on their own) with cyclomatic complexity ≥ 10. Counts `if`, `elif`, `for`, `while`, `except`, `match` `case` (a `match` with n cases adds n − 1), conditional expressions (`x if c else y`), plus `and` / `or`. |
-| `python.length` | Functions ≥ 50 lines. Low severity. |
-| `python.params` | Functions with ≥ 6 parameters (`self`/`cls` are free). Low severity. |
-| `python.nesting` | Functions nesting `if` / `try` / `with` / `match` / loops 5+ levels deep (`elif` chains do not add depth). Low severity. |
-| `python.silent-except` | An `except` block containing only `pass` / `...`. Medium severity. |
-| `python.leftover-debug` | `breakpoint()`, `pdb.set_trace()`, `ipdb.set_trace()`. Low severity. |
+| Detector                  | What it flags                                                                                                                                                                                                                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `python.file-size`      | Files over the threshold.                                                                                                                                                                                                                                                          |
+| `python.complexity`     | Functions / methods (nested defs are scored on their own) with cyclomatic complexity ≥ 10. Counts `if`, `elif`, `for`, `while`, `except`, `match` `case` (a `match` with n cases adds n − 1), conditional expressions (`x if c else y`), plus `and` / `or`. |
+| `python.length`         | Functions ≥ 50 lines. Low severity.                                                                                                                                                                                                                                               |
+| `python.params`         | Functions with ≥ 6 parameters (`self`/`cls` are free). Low severity.                                                                                                                                                                                                          |
+| `python.nesting`        | Functions nesting `if` / `try` / `with` / `match` / loops 5+ levels deep (`elif` chains do not add depth). Low severity.                                                                                                                                                 |
+| `python.silent-except`  | An `except` block containing only `pass` / `...`. Medium severity.                                                                                                                                                                                                           |
+| `python.leftover-debug` | `breakpoint()`, `pdb.set_trace()`, `ipdb.set_trace()`. Low severity.                                                                                                                                                                                                         |
 
 </details>
 
 <details>
 <summary><b>C (.c, .h)</b></summary>
 
-| Detector | What it flags |
-|---|---|
-| `c.file-size` | Files over the threshold. |
+| Detector         | What it flags                                                                                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `c.file-size`  | Files over the threshold.                                                                                                                                                                                                      |
 | `c.complexity` | Functions with cyclomatic complexity ≥ 10. Counts `if`, `for`, `while`, `do`, `case`, ternary `?:`, `&&`, `\|\|`. Preprocessor `#ifdef`/`#if` are not counted (conditional compilation is a different axis). |
-| `c.length` | Functions ≥ 50 lines. Low severity. |
-| `c.params` | Functions with ≥ 6 parameters. Low severity. |
-| `c.nesting` | Functions nesting `if` / `switch` / loops 5+ levels deep (`else if` chains do not add depth). Low severity. |
+| `c.length`     | Functions ≥ 50 lines. Low severity.                                                                                                                                                                                           |
+| `c.params`     | Functions with ≥ 6 parameters. Low severity.                                                                                                                                                                                  |
+| `c.nesting`    | Functions nesting `if` / `switch` / loops 5+ levels deep (`else if` chains do not add depth). Low severity.                                                                                                              |
 
 </details>
 
 <details>
 <summary><b>C++ (.cpp, .cc, .cxx, .c++, .hpp, .hh, .hxx, .h++)</b></summary>
 
-| Detector | What it flags |
-|---|---|
-| `cpp.file-size` | Files over the threshold. |
-| `cpp.complexity` | Functions / methods with cyclomatic complexity ≥ 10. Same as C plus `for_range_loop` and `catch_clause`. Handles qualified names (`Foo::bar`), operator overloads, and destructors. |
-| `cpp.length` | Functions ≥ 50 lines. Low severity. |
-| `cpp.params` | Functions and methods with ≥ 6 parameters. Low severity. |
-| `cpp.nesting` | Same as `c.nesting`, plus range-`for` and `try`. Low severity. |
-| `cpp.empty-catch` | A `catch` block with no statements (a comment inside counts as deliberate). Medium severity. |
+| Detector            | What it flags                                                                                                                                                                             |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cpp.file-size`   | Files over the threshold.                                                                                                                                                                 |
+| `cpp.complexity`  | Functions / methods with cyclomatic complexity ≥ 10. Same as C plus `for_range_loop` and `catch_clause`. Handles qualified names (`Foo::bar`), operator overloads, and destructors. |
+| `cpp.length`      | Functions ≥ 50 lines. Low severity.                                                                                                                                                      |
+| `cpp.params`      | Functions and methods with ≥ 6 parameters. Low severity.                                                                                                                                 |
+| `cpp.nesting`     | Same as `c.nesting`, plus range-`for` and `try`. Low severity.                                                                                                                      |
+| `cpp.empty-catch` | A `catch` block with no statements (a comment inside counts as deliberate). Medium severity.                                                                                            |
 
 `.h` files belong to the C plugin (the dominant convention for C headers). C++ headers should use `.hpp` to be picked up by the C++ plugin.
 
@@ -249,8 +259,8 @@ Details, thresholds and exact rules are below; click a language to expand.
 
 Activates when a project's `package.json` includes any of `react` / `react-dom` / `next` / `gatsby` / `remix` (or any of those in dev/peer deps), or when the file set contains at least one `.tsx` file.
 
-| Detector | What it flags |
-|---|---|
+| Detector                    | What it flags                                                                                                                                                                                                     |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `react.hook-return-bloat` | Custom hooks (`useXxx`) whose final `return` is an object literal with > 12 fields. Threshold matches desloppify's reference detector. The signal: a hook bundling too many concerns is a refactor candidate. |
 
 </details>
@@ -258,8 +268,8 @@ Activates when a project's `package.json` includes any of `react` / `react-dom` 
 <details>
 <summary><b>Next.js (auto-activated when next is in package.json)</b></summary>
 
-| Detector | What it flags |
-|---|---|
+| Detector                        | What it flags                                                                                                                                                                                                                      |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `nextjs.use-client-not-first` | A `'use client'` directive that isn't the first meaningful line of the module. Next.js silently treats such files as server components — a hard-to-spot bug. High severity. Tolerates leading line/block comments and a shebang. |
 
 </details>
@@ -269,8 +279,8 @@ Activates when a project's `package.json` includes any of `react` / `react-dom` 
 
 This is **net-new design** — desloppify ships no Nuxt support, so we couldn't crib from it.
 
-| Detector | What it flags |
-|---|---|
+| Detector                   | What it flags                                                                                                                                                                                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `nuxt.composable-naming` | A TS/JS file inside a `composables/` directory whose every exported function violates Nuxt's `use[A-Z]` naming convention. Auto-import won't pick those exports up under the expected name. The file passes if at least one of its exported functions is well-named. |
 
 </details>
@@ -278,9 +288,9 @@ This is **net-new design** — desloppify ships no Nuxt support, so we couldn't 
 <details>
 <summary><b>Comment slop (Rust, TS/JS, Go, Python, C, C++)</b></summary>
 
-| Detector | What it flags |
-|---|---|
-| `<lang>.commented-code` | 3+ consecutive `//` (or `#`) comment lines that read as code. Doc comments, shebangs and tool directives (`noqa`, `type:`, `eslint`, ...) are ignored. Low severity. |
+| Detector                   | What it flags                                                                                                                                                                                                                                 |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<lang>.commented-code`  | 3+ consecutive `//` (or `#`) comment lines that read as code. Doc comments, shebangs and tool directives (`noqa`, `type:`, `eslint`, ...) are ignored. Low severity.                                                                |
 | `<lang>.obvious-comment` | A 2–5 word comment whose words all appear in the identifiers of the line right below it (`// return the result` above `return result;`). Deliberately conservative — it misses paraphrases rather than flag explanations. Low severity. |
 
 </details>
@@ -288,8 +298,8 @@ This is **net-new design** — desloppify ships no Nuxt support, so we couldn't 
 <details>
 <summary><b>Duplicates (all languages)</b></summary>
 
-| Detector | What it flags |
-|---|---|
+| Detector      | What it flags                                                                                                                                                                                                                                                                                                                                                   |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dup.block` | A run of ≥ 8 identical significant lines (blank lines, comments, imports and lone braces are ignored) that also appears elsewhere. Of N copies, N−1 are reported, each pointing at the first. Test files (`tests/`, `*_test.*`, `*.spec.*`, `test_*`) are skipped. Low severity, Medium at 20+ lines. Tune with `[detectors.duplicates] min_lines`. |
 
 </details>

@@ -1,0 +1,12 @@
+{
+  "name": "noaislop",
+  "owner": { "name": "Alexis Bonnard" },
+  "description": "dslp: score a codebase for AI slop and fix it",
+  "plugins": [
+    {
+      "name": "dslp",
+      "source": "./",
+      "description": "Score a codebase 0-100 for AI slop and fix the worst issues first"
+    }
+  ]
+}
