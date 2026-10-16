@@ -234,7 +234,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "dslp-base"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "anyhow",
  "dslp-core",
@@ -254,7 +254,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-cli"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -277,7 +277,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-core"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "blake3",
  "chrono",
@@ -288,7 +288,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-dup"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "blake3",
  "dslp-base",
@@ -298,7 +298,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-engine"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -312,7 +312,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-fw-nextjs"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "dslp-base",
  "dslp-core",
@@ -321,7 +321,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-fw-nuxt"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "dslp-base",
  "dslp-core",
@@ -333,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-fw-react"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "dslp-base",
  "dslp-core",
@@ -345,7 +345,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-lang-c"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "dslp-base",
  "dslp-core",
@@ -357,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-lang-common"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "dslp-base",
  "dslp-core",
@@ -366,7 +366,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-lang-cpp"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "dslp-base",
  "dslp-core",
@@ -378,7 +378,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-lang-go"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "dslp-base",
  "dslp-core",
@@ -390,7 +390,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-lang-python"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "dslp-base",
  "dslp-core",
@@ -402,7 +402,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-lang-rust"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "dslp-base",
  "dslp-core",
@@ -414,7 +414,7 @@ dependencies = [
 
 [[package]]
 name = "dslp-lang-ts"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "dslp-base",
  "dslp-core",
