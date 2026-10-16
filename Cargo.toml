@@ -23,7 +23,7 @@ version = "0.13.0"
 edition = "2021"
 license = "MIT"
 authors = ["Alexis Bonnard"]
-repository = "https://github.com/Elyeden0/rust_noAIslop"
+repository = "https://github.com/Elyeden0/dslp_plugin"
 rust-version = "1.78"
 
 [workspace.dependencies]

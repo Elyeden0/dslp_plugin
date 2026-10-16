@@ -3,7 +3,7 @@
   "version": "0.13.0",
   "description": "Score a codebase 0-100 for AI slop and fix the worst issues first",
   "author": { "name": "Alexis Bonnard" },
-  "repository": "https://github.com/Elyeden0/rust_noAIslop",
+  "repository": "https://github.com/Elyeden0/dslp_plugin",
   "license": "MIT",
   "keywords": ["code-quality", "lint", "slop", "refactoring"]
 }

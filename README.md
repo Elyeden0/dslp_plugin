@@ -14,8 +14,8 @@ A Rust port of the analyse → score → "what to fix" core of [desloppify](http
 Requires a Rust toolchain (`rust-version = 1.78` in `Cargo.toml`).
 
 ```bash
-git clone https://github.com/Elyeden0/rust_noAIslop.git noAIslop
-cd noAIslop
+git clone https://github.com/Elyeden0/dslp_plugin.git
+cd dslp_plugin
 cargo install --path dslp-cli
 ```
 
@@ -31,7 +31,7 @@ Update later with `git pull && cargo install --path dslp-cli --force`; remove wi
 With `dslp` on your `PATH`, install the plugin to let Claude run the scan → fix loop for you:
 
 ```
-/plugin install dslp --marketplace Elyeden0/rust_noAIslop
+/plugin install dslp --marketplace Elyeden0/dslp_plugin
 ```
 
 It adds a `dslp` skill plus `/dslp-scan` and `/dslp-fix`, and warns at session start if the `dslp` binary is missing.

@@ -4,6 +4,6 @@ command -v dslp >/dev/null 2>&1 && exit 0
 cat <<'MSG'
 The dslp plugin is enabled but the `dslp` binary is not on PATH, so dslp commands will fail.
 Install it with:
-  git clone https://github.com/Elyeden0/rust_noAIslop.git && cargo install --path rust_noAIslop/dslp-cli
+  git clone https://github.com/Elyeden0/dslp_plugin.git && cargo install --path dslp_plugin/dslp-cli
 then make sure ~/.cargo/bin is on PATH.
 MSG
