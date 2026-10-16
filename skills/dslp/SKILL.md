@@ -14,6 +14,8 @@ Every command takes `--path <dir>` (default: current directory). Use `--json` on
 1. If `.dslp/` doesn't exist, run `dslp init` once.
 2. `dslp scan --json` to analyse and get the score, then `dslp findings --json` for every open issue. Fields: `fingerprint`, `detector`, `severity`, `file`, `span`, `message`, `fix_hint`.
 3. Print **all** open issues as a numbered list (short fingerprint, detector, severity, `file:line`, message), plus the score. Then ask the user which ones to fix. Do not edit any code before they answer.
+
+   If the `AskUserQuestion` tool is available, ask with it so each issue is a checkbox: one call, up to 4 questions with `multiSelect: true`, each holding 2-4 issues, so 16 per call. Split the list in order (highest priority first) and name each question by its range in `header` (≤ 12 chars, e.g. `#1-4`). Each option's `label` is `#<n> <detector>`; its `description` is `<severity> · <file>:<line> · <message>`. With a single open issue, ask one question with the options `Fix it` and `Skip`. If more than 16 are open, say in the question text that the rest can be picked by number in "Other" (e.g. `17, 20-23`, or `all`). Without the tool, ask in plain text.
 4. For each chosen issue, read the code at `file`/`span` and fix the underlying problem, using `fix_hint` as a guide. Keep behaviour the same; run the project's tests if there are any.
 5. `dslp resolve <fingerprint>` for each fixed issue, then `dslp scan --json`. A resolve is optimistic: the scan reopens the issue if it is still there.
 6. If any chosen issue is still open, fix it again and go back to step 5. Repeat until none of the chosen issues show up in `dslp findings --json`.
